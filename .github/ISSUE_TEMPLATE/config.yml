@@ -1,10 +1,10 @@
 blank_issues_enabled: true
 contact_links:
 - name: 📚 Documentation
-  url: https://github.com/techdebtgpt/architecture-doc-generator/tree/main/docs
+  url: https://github.com/floristafa/maintsight-cli/tree/main/docs
   about: Check our comprehensive documentation for guides and examples
 - name: 💬 Discussions
-  url: https://github.com/techdebtgpt/architecture-doc-generator/discussions
+  url: https://github.com/floristafa/maintsight-cli/discussions
   about: Ask questions and discuss ideas with the community
 - name: 🌐 Website
   url: https://techdebtgpt.com

@@ -113,7 +113,7 @@ jobs:
 
           ### Installation
           ```bash
-          npm install -g @techdebtgpt/archdoc-generator@${{ steps.bump.outputs.new_version }}
+          npm install -g @floristafa/maintsight-cli@${{ steps.bump.outputs.new_version }}
           ```
 
           ### What's Changed
@@ -127,7 +127,7 @@ jobs:
       if: success()
       run: |
         echo "✅ Successfully published ${{ steps.bump.outputs.new_version }} to npm"
-        echo "📦 Package: https://www.npmjs.com/package/@techdebtgpt/archdoc-generator"
+        echo "📦 Package: https://www.npmjs.com/package/@floristafa/maintsight-cli"
 
     - name: Notify on failure
       if: failure()

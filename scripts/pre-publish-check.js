@@ -31,15 +31,15 @@ try {
   }
 
   // Check bin field
-  if (pkg.bin && pkg.bin.archdoc) {
-    const binPath = path.join(__dirname, '..', pkg.bin.archdoc);
+  if (pkg.bin && pkg.bin.maintsight) {
+    const binPath = path.join(__dirname, '..', pkg.bin.maintsight);
     if (fs.existsSync(binPath)) {
       checks.push({ name: 'Binary file exists', passed: true });
     } else {
       checks.push({
         name: 'Binary file exists',
         passed: false,
-        error: `${pkg.bin.archdoc} not found`,
+        error: `${pkg.bin.maintsight} not found`,
       });
       hasErrors = true;
     }
