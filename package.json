@@ -8,6 +8,10 @@
     "maintsight": "./dist/cli/maintsight-cli.js",
     "ms": "./dist/cli/maintsight-cli.js"
   },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "build:watch": "tsc -p tsconfig.build.json --watch",
@@ -38,12 +42,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/maintsight/maintsight.git"
+    "url": "https://github.com/floristafa/maintsight-cli.git"
   },
   "bugs": {
-    "url": "https://github.com/maintsight/maintsight/issues"
+    "url": "https://github.com/floristafa/maintsight-cli/issues"
   },
-  "homepage": "https://github.com/maintsight/maintsight#readme",
+  "homepage": "https://github.com/floristafa/maintsight-cli#readme",
   "engines": {
     "node": ">=18.0.0"
   },
