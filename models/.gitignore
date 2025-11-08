@@ -1,0 +1,4 @@
+# Ignore all model files by default
+*
+!.gitignore
+!README.md
