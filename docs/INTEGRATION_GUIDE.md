@@ -1,132 +1,258 @@
-# Integration Guide
+# MaintSight Integration Guide
 
-This guide explains how to integrate the ArchDoc Generator into your projects, CI/CD pipelines, and development workflows.
+This guide explains how to integrate MaintSight into your projects, CI/CD pipelines, and development workflows.
 
 ## 📚 Table of Contents
 
 - [**CI/CD Integration**](#-cicd-integration)
   - [GitHub Actions](#github-actions)
   - [GitLab CI](#gitlab-ci)
+  - [Jenkins](#jenkins)
 - [**NPM Scripts**](#-npm-scripts)
-- [**Programmatic Usage**](#-programmatic-usage)
 - [**Pre-commit Hooks**](#-pre-commit-hooks)
+- [**Programmatic Usage**](#-programmatic-usage)
+- [**Monitoring & Alerts**](#-monitoring--alerts)
 
 ## 🔄 CI/CD Integration
 
-Automate your documentation generation by integrating ArchDoc Generator into your CI/CD pipeline.
-
 ### GitHub Actions
 
-Create a workflow file at `.github/workflows/docs.yml` to generate documentation on every push to your main branch.
+Create a workflow to check maintenance risk on pull requests:
 
 ```yaml
-name: Generate Architecture Documentation
+name: Maintenance Risk Check
 
 on:
-  push:
-    branches: [main]
+  pull_request:
+    types: [opened, synchronize]
 
 jobs:
-  generate-docs:
+  risk-check:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Full history needed for analysis
+
+      - uses: actions/setup-node@v3
         with:
           node-version: '18'
 
-      - name: Install ArchDoc Generator
-        run: npm install -g @archdoc/generator
+      - name: Install MaintSight
+        run: npm install -g maintsight
 
-      - name: Generate Documentation
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: archdoc analyze . --output ./docs/architecture
-
-      - name: Commit Documentation
+      - name: Run risk analysis
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add docs/architecture/
-          git commit -m "docs: update architecture documentation" || echo "No changes to commit"
-          git push
+          maintsight predict --format markdown > risk-report.md
+          maintsight stats
+
+      - name: Comment PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('risk-report.md', 'utf8');
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });
+
+      - name: Fail if critical risk
+        run: |
+          critical=$(maintsight predict -f json | jq '[.[] | select(.risk_score > 0.9)] | length')
+          if [ "$critical" -gt "0" ]; then
+            echo "❌ Found $critical files with critical risk!"
+            exit 1
+          fi
 ```
 
 ### GitLab CI
 
-For GitLab, create a `.gitlab-ci.yml` file.
+Add to `.gitlab-ci.yml`:
 
 ```yaml
-stages:
-  - docs
-
-generate-docs:
-  stage: docs
+maintenance-check:
+  stage: test
   image: node:18
+  before_script:
+    - npm install -g maintsight
   script:
-    - npm install -g @archdoc/generator
-    - archdoc analyze . --output ./docs/architecture
+    - maintsight predict --threshold 0.65 --format markdown > risk-report.md
+    - maintsight stats
   artifacts:
-    paths:
-      - docs/architecture/
+    reports:
+      junit: risk-report.md
   only:
+    - merge_requests
     - main
 ```
 
-## 📦 NPM Scripts
+### Jenkins
 
-Integrate the generator into your project's `package.json` as a script.
+Add to your Jenkinsfile:
 
-```json
-{
-  "scripts": {
-    "docs": "archdoc analyze . --output ./docs",
-    "docs:quick": "archdoc analyze . --depth quick",
-    "docs:deep": "archdoc analyze . --depth deep"
-  },
-  "devDependencies": {
-    "@archdoc/generator": "^0.1.0"
+```groovy
+pipeline {
+  agent any
+
+  stages {
+    stage('Maintenance Check') {
+      steps {
+        sh 'npm install -g maintsight'
+        sh 'maintsight predict --format json > risk-report.json'
+
+        script {
+          def report = readJSON file: 'risk-report.json'
+          def highRisk = report.findAll { it.risk_score > 0.65 }
+
+          if (highRisk.size() > 0) {
+            echo "⚠️  Found ${highRisk.size()} high-risk files"
+            currentBuild.result = 'UNSTABLE'
+          }
+        }
+      }
+    }
+  }
+
+  post {
+    always {
+      archiveArtifacts artifacts: 'risk-report.json'
+    }
   }
 }
 ```
 
-You can then run the scripts with `npm run docs`.
+## 📦 NPM Scripts
+
+Add MaintSight to your package.json scripts:
+
+```json
+{
+  "scripts": {
+    "maintenance:check": "maintsight predict",
+    "maintenance:report": "maintsight predict -f markdown -o maintenance-report.md",
+    "maintenance:stats": "maintsight stats",
+    "maintenance:high-risk": "maintsight predict -t 0.65 -f json",
+    "precommit": "maintsight predict -t 0.8 || echo 'Warning: High risk files detected'"
+  }
+}
+```
+
+## 🪝 Pre-commit Hooks
+
+Using husky to check maintenance risk before commits:
+
+```bash
+npm install --save-dev husky
+npx husky install
+```
+
+Create `.husky/pre-commit`:
+
+```bash
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Check for high-risk files
+high_risk=$(npx maintsight predict -f json -t 0.8 2>/dev/null | jq length)
+
+if [ "$high_risk" -gt "0" ]; then
+  echo "⚠️  Warning: $high_risk files have high maintenance risk (>0.8)"
+  echo "Run 'maintsight predict -t 0.8' to see details"
+  # Uncomment to block commit:
+  # exit 1
+fi
+```
 
 ## 💻 Programmatic Usage
 
-Use the ArchDoc Generator programmatically in your Node.js applications.
+Integrate MaintSight into your build tools or scripts:
 
-```typescript
-import { DocumentationOrchestrator, AgentRegistry, FileSystemScanner } from '@archdoc/generator';
+```javascript
+const { GitCommitCollector, XGBoostPredictor } = require('maintsight');
+const fs = require('fs').promises;
 
-async function generate() {
-  const scanner = new FileSystemScanner();
-  const registry = new AgentRegistry();
-  const orchestrator = new DocumentationOrchestrator(registry, scanner);
+async function checkMaintenanceRisk() {
+  const predictor = new XGBoostPredictor();
+  await predictor.loadModel('./node_modules/maintsight/models/model.json');
 
-  const output = await orchestrator.generateDocumentation('./path/to/project');
+  const collector = new GitCommitCollector(process.cwd());
+  const commitData = collector.fetchCommitData(300);
 
-  console.log('Documentation generated successfully:', output.summary);
+  const predictions = predictor.predict(commitData);
+  const highRisk = predictions.filter((p) => p.risk_score > 0.65);
+
+  if (highRisk.length > 0) {
+    console.warn(`⚠️  ${highRisk.length} high-risk files detected`);
+
+    // Save report
+    await fs.writeFile('high-risk-files.json', JSON.stringify(highRisk, null, 2));
+
+    // Optionally fail the build
+    if (highRisk.some((f) => f.risk_score > 0.9)) {
+      process.exit(1);
+    }
+  }
 }
 
-generate();
+checkMaintenanceRisk().catch(console.error);
 ```
 
-## 🎣 Pre-commit Hooks
+## 📊 Monitoring & Alerts
 
-You can use a pre-commit hook to ensure your documentation is always up-to-date.
+### Slack Integration
 
-### Using Husky
+Send alerts for high-risk files:
 
-1. Install Husky: `npm install husky --save-dev`
-2. Initialize Husky: `npx husky install`
-3. Create a pre-commit hook:
+```javascript
+const axios = require('axios');
+
+async function sendSlackAlert(highRiskFiles) {
+  const webhook = process.env.SLACK_WEBHOOK_URL;
+
+  await axios.post(webhook, {
+    text: `⚠️ Maintenance Risk Alert`,
+    attachments: [
+      {
+        color: 'warning',
+        fields: highRiskFiles.slice(0, 5).map((f) => ({
+          title: f.module,
+          value: `Risk: ${(f.risk_score * 100).toFixed(1)}%`,
+          short: true,
+        })),
+      },
+    ],
+  });
+}
+```
+
+### Dashboard Integration
+
+Track trends over time:
 
 ```bash
-npx husky add .husky/pre-commit "npm run docs && git add docs/"
+#!/bin/bash
+# Run daily and save results
+DATE=$(date +%Y-%m-%d)
+maintsight predict -f json > "reports/risk-${DATE}.json"
+
+# Generate trend data
+jq -s '[.[] | {
+  date: input_filename | split("/")[-1] | split(".")[0] | split("-")[1:4] | join("-"),
+  high_risk: [.[] | select(.risk_score > 0.65)] | length,
+  total: length
+}]' reports/risk-*.json > trend-data.json
 ```
 
-This will automatically generate and stage your documentation before each commit.
+## Best Practices
+
+1. **Regular Analysis**: Run MaintSight weekly or on each release
+2. **Track Trends**: Monitor risk scores over time
+3. **Set Thresholds**: Define acceptable risk levels for your project
+4. **Prioritize Refactoring**: Focus on files with consistently high risk
+5. **Combine with Code Review**: Use risk scores to guide review efforts

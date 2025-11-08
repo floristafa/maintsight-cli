@@ -1,107 +1,142 @@
-# Architecture Documentation
+# MaintSight Architecture
 
-This document provides a detailed overview of the technical architecture and design decisions behind the ArchDoc Generator.
+This document describes the technical architecture of MaintSight, a maintenance risk prediction tool for git repositories.
 
-## 📚 Table of Contents
+## System Overview
 
-- [**System Architecture**](#-system-architecture)
-- [**Core Components**](#-core-components)
-- [**Multi-Agent System**](#-multi-agent-system)
-- [**Data Flow**](#-data-flow)
-- [**Design Patterns**](#-design-patterns)
-- [**Technology Stack**](#-technology-stack)
-
-## 🏛️ System Architecture
-
-The ArchDoc Generator is built on a modular, multi-agent architecture that leverages LangChain for AI-powered analysis. The system is designed to be language-agnostic and extensible, allowing for the easy addition of new agents and capabilities.
+MaintSight uses a simple, efficient architecture focused on performance and accuracy:
 
 ```
 ┌─────────────────────────────┐
-│         CLI Interface         │
-└─────────────┬─────────────┘
+│      CLI Interface          │
+└─────────────┬───────────────┘
               │
-┌─────────────────────────────┐
-│  Documentation Orchestrator │
-└──────┬────────────────┬─────┘
-       │                │
-┌──────────────┐  ┌──────────────┐
-│   Scanner    │  │ Agent Registry │
-└──────────────┘  └──────┬───────┘
-                         │
-┌──────────────────┐  ┌──────────────────┐
-│  Agent Instances │  │    LLM Service   │
-└──────────────────┘  └──────────────────┘
+┌─────────────┴───────────────┐
+│     Core Services           │
+├─────────────────────────────┤
+│ • GitCommitCollector        │
+│ • FeatureEngineer           │
+│ • XGBoostPredictor          │
+└─────────────┬───────────────┘
+              │
+┌─────────────┴───────────────┐
+│      XGBoost Model          │
+│    (models/model.json)      │
+└─────────────────────────────┘
 ```
 
-## 🧩 Core Components
+## Core Components
 
-### Base Orchestrator
+### GitCommitCollector
 
-The `BaseOrchestrator` is an abstract base class that provides common functionality for all orchestrators in the system. It includes:
+Responsible for extracting commit history from git repositories:
 
-- **Shared logging infrastructure**: Consistent logging across all orchestrator types
-- **Project scanning logic**: Common file system scanning capabilities
-- **Agent management**: Unified agent registration and discovery
-- **Abstract execution interface**: Enforces a consistent contract for all orchestrator implementations
+- Executes git commands to fetch commit logs
+- Filters for source code files only
+- Parses commit messages for bug fix identification
+- Aggregates commit data by file
 
-This design allows for easy extension with new orchestrator types (e.g., C4 model generation, Mermaid diagrams) while maintaining consistency.
+**Key Methods:**
 
-### Documentation Orchestrator
+- `fetchCommitData()`: Main entry point for data collection
+- `isSourceFile()`: Filters non-code files
+- `isBugFix()`: Identifies bug-fixing commits
 
-The `DocumentationOrchestrator` extends `BaseOrchestrator` and is the central coordinator for generating comprehensive documentation. It manages the entire workflow, from scanning the file system to executing agents and aggregating their results.
+### FeatureEngineer
 
-### C4 Model Orchestrator
+Transforms raw commit data into 16 machine learning features:
 
-The `C4ModelOrchestrator` extends `BaseOrchestrator` and specializes in generating C4 architecture models. It coordinates agents to produce Context, Container, and Component diagrams in both JSON and PlantUML formats.
+1. **Commit Metrics**: total commits, unique authors
+2. **Code Churn**: lines added/removed
+3. **Temporal Features**: file age, time since last update
+4. **Quality Indicators**: bug fix commits, bug density
+5. **Collaboration Metrics**: author concentration, collaboration factor
+6. **Activity Patterns**: commit frequency, recent activity
+7. **Maintenance Indicators**: refactoring score, maintenance burden
 
-### Agent Registry
+### XGBoostPredictor
 
-The `AgentRegistry` is responsible for managing the lifecycle and discovery of all available agents. It allows for dynamic registration and capability-based selection of agents.
+Loads and executes the pre-trained XGBoost model:
 
-### File System Scanner
+- Loads model from JSON format
+- Validates feature counts
+- Performs tree-based inference
+- Maps scores to risk categories
 
-The `FileSystemScanner` efficiently scans the project directory, respects `.gitignore` rules, and gathers metadata about the codebase, such as language distribution and file structure.
+**Risk Categories:**
 
-### LLM Service
+- No Risk: 0.00 - 0.22
+- Low Risk: 0.22 - 0.47
+- Medium Risk: 0.47 - 0.65
+- High Risk: 0.65 - 1.00
 
-The `LLMService` provides a unified interface for interacting with multiple LLM providers, including Anthropic, OpenAI, XAI, and Google. It handles model selection, token counting, and other LLM-related tasks.
+## Data Flow
 
-## 🤖 Multi-Agent System
+1. **Input**: Git repository path and analysis parameters
+2. **Git Analysis**: Extract commit history using git log
+3. **Feature Engineering**: Transform commits into 16 numerical features
+4. **Prediction**: Run XGBoost model inference
+5. **Output**: Risk scores and categories for each file
 
-The core of the generator is its multi-agent system, where specialized agents analyze different aspects of the codebase. Each agent implements a common `Agent` interface.
+## Implementation Details
 
-### Available Agents
+### Pure TypeScript XGBoost
 
-- **File Structure Agent**: Analyzes the project's directory and file organization.
-- **Dependency Analyzer Agent**: Examines external and internal dependencies.
-- **Pattern Detector Agent**: Identifies design patterns and coding practices.
-- **Flow Visualization Agent**: Maps data and control flows within the application.
-- **Schema Generator Agent**: Extracts data models, interfaces, and type definitions.
-- **Architecture Analyzer Agent**: Provides a high-level overview of the system's architecture.
-- **Security Analyzer Agent**: Conducts a thorough security analysis, identifying potential vulnerabilities.
+MaintSight includes a pure TypeScript implementation of XGBoost inference:
 
-## 🌊 Data Flow
+```typescript
+interface XGBoostNode {
+  nodeid: number;
+  depth: number;
+  split?: string;
+  split_condition?: number;
+  yes?: number;
+  no?: number;
+  missing?: number;
+  children?: XGBoostNode[];
+  leaf?: number;
+}
+```
 
-1. **Scan**: The `FileSystemScanner` scans the project and creates an execution context.
-2. **Execute**: The `DocumentationOrchestrator` selects and runs the appropriate agents in parallel.
-3. **Analyze**: Each agent performs its analysis using the LLM service.
-4. **Refine**: If enabled, the results are iteratively refined to improve clarity and accuracy.
-5. **Aggregate**: The orchestrator aggregates the results from all agents into a final documentation output.
-6. **Format**: The output is formatted into Markdown files.
+This eliminates the need for Python dependencies or native bindings.
 
-## 🎨 Design Patterns
+### Logging System
 
-- **Template Method Pattern**: The `BaseOrchestrator` defines the workflow structure, while subclasses implement specific behavior. This allows for consistent orchestrator behavior while supporting different output types.
-- **Registry Pattern**: Used by the `AgentRegistry` for dynamic agent management.
-- **Strategy Pattern**: Each agent implements a different analysis strategy under a common interface.
-- **Singleton Pattern**: The `LLMService` uses a singleton to provide a single, shared instance.
-- **Builder Pattern**: Formatters use a builder-style approach to construct the final documentation.
-- **Dependency Injection**: Orchestrators receive their dependencies (AgentRegistry, FileSystemScanner) via constructor injection, improving testability and flexibility.
+Uses a custom lightweight logger that:
 
-## 💻 Technology Stack
+- Writes to stderr to keep stdout clean for results
+- Supports log levels (ERROR, WARN, INFO, DEBUG)
+- Includes timestamps and component names
+- Uses color coding for visibility
 
-- **LangChain**: The primary framework for LLM orchestration.
-- **TypeScript**: The core programming language.
-- **Commander.js**: Used for building the command-line interface.
-- **Zod**: For schema validation and type safety.
-- **Jest**: For unit and integration testing.
+### Data Persistence
+
+Automatically saves prediction results to `~/.maintsight/`:
+
+- Creates repository-specific folders
+- Saves timestamped CSV files
+- Enables historical trend analysis
+
+## Performance Characteristics
+
+- **Fast**: Analyzes hundreds of files in seconds
+- **Memory Efficient**: Streams git data without loading entire history
+- **Scalable**: Handles repositories with thousands of commits
+- **Deterministic**: Same inputs always produce same outputs
+
+## Technology Stack
+
+- **Language**: TypeScript 5.3+
+- **Runtime**: Node.js 18+
+- **CLI Framework**: Commander.js
+- **Build Tool**: TypeScript Compiler (tsc)
+- **Testing**: Jest
+- **Linting**: ESLint with TypeScript plugin
+
+## Design Principles
+
+1. **Simplicity**: Minimal dependencies, focused functionality
+2. **Performance**: Efficient git data processing
+3. **Reliability**: Comprehensive error handling
+4. **Extensibility**: Clean interfaces for future enhancements
+5. **Usability**: Intuitive CLI with helpful output formats
