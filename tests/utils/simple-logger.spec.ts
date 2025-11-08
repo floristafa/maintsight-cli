@@ -2,18 +2,12 @@ import { Logger } from '../../src/utils/simple-logger';
 import chalk from 'chalk';
 
 describe('Logger', () => {
-  let consoleSpy: {
-    log: jest.SpyInstance;
-    warn: jest.SpyInstance;
-    error: jest.SpyInstance;
-  };
+  let stdoutSpy: jest.SpyInstance;
+  let stderrSpy: jest.SpyInstance;
 
   beforeEach(() => {
-    consoleSpy = {
-      log: jest.spyOn(console, 'log').mockImplementation(),
-      warn: jest.spyOn(console, 'warn').mockImplementation(),
-      error: jest.spyOn(console, 'error').mockImplementation(),
-    };
+    stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation();
+    stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation();
   });
 
   afterEach(() => {
@@ -24,7 +18,7 @@ describe('Logger', () => {
     it('should create logger with default info level', () => {
       const logger = new Logger('TestLogger');
       logger.info('test message');
-      expect(consoleSpy.log).toHaveBeenCalled();
+      expect(stderrSpy).toHaveBeenCalled();
     });
 
     it('should create logger with custom level', () => {
@@ -32,8 +26,8 @@ describe('Logger', () => {
       logger.info('should not log');
       logger.error('should log');
 
-      expect(consoleSpy.log).not.toHaveBeenCalled();
-      expect(consoleSpy.error).toHaveBeenCalled();
+      expect(stderrSpy).toHaveBeenCalledTimes(1); // only error
+      expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('❌'));
     });
   });
 
@@ -46,9 +40,8 @@ describe('Logger', () => {
       logger.warn('warn message');
       logger.error('error message');
 
-      expect(consoleSpy.log).toHaveBeenCalledTimes(2); // debug and info
-      expect(consoleSpy.warn).toHaveBeenCalledTimes(1);
-      expect(consoleSpy.error).toHaveBeenCalledTimes(1);
+      expect(stdoutSpy).toHaveBeenCalledTimes(1); // debug uses stdout
+      expect(stderrSpy).toHaveBeenCalledTimes(3); // info, warn, error use stderr
     });
 
     it('should respect info level', () => {
@@ -59,9 +52,8 @@ describe('Logger', () => {
       logger.warn('warn message');
       logger.error('error message');
 
-      expect(consoleSpy.log).toHaveBeenCalledTimes(1); // only info
-      expect(consoleSpy.warn).toHaveBeenCalledTimes(1);
-      expect(consoleSpy.error).toHaveBeenCalledTimes(1);
+      expect(stdoutSpy).not.toHaveBeenCalled(); // debug not logged
+      expect(stderrSpy).toHaveBeenCalledTimes(3); // info, warn, error
     });
 
     it('should respect warn level', () => {
@@ -72,9 +64,8 @@ describe('Logger', () => {
       logger.warn('warn message');
       logger.error('error message');
 
-      expect(consoleSpy.log).not.toHaveBeenCalled();
-      expect(consoleSpy.warn).toHaveBeenCalledTimes(1);
-      expect(consoleSpy.error).toHaveBeenCalledTimes(1);
+      expect(stdoutSpy).not.toHaveBeenCalled();
+      expect(stderrSpy).toHaveBeenCalledTimes(2); // warn and error
     });
 
     it('should respect error level', () => {
@@ -85,9 +76,8 @@ describe('Logger', () => {
       logger.warn('warn message');
       logger.error('error message');
 
-      expect(consoleSpy.log).not.toHaveBeenCalled();
-      expect(consoleSpy.warn).not.toHaveBeenCalled();
-      expect(consoleSpy.error).toHaveBeenCalledTimes(1);
+      expect(stdoutSpy).not.toHaveBeenCalled();
+      expect(stderrSpy).toHaveBeenCalledTimes(1); // only error
     });
   });
 
@@ -96,9 +86,9 @@ describe('Logger', () => {
       const logger = new Logger('TestLogger', 'debug');
       logger.debug('test message', { foo: 'bar' });
 
-      expect(consoleSpy.log).toHaveBeenCalledWith(expect.stringContaining('[DEBUG] [TestLogger]'));
-      expect(consoleSpy.log).toHaveBeenCalledWith(
-        expect.stringContaining(JSON.stringify({ foo: 'bar' }, null, 2)),
+      expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('[DEBUG] [TestLogger]'));
+      expect(stdoutSpy).toHaveBeenCalledWith(
+        chalk.gray(JSON.stringify({ foo: 'bar' }, null, 2)) + '\n',
       );
     });
 
@@ -106,21 +96,21 @@ describe('Logger', () => {
       const logger = new Logger('TestLogger');
       logger.info('test message', '🚀');
 
-      expect(consoleSpy.log).toHaveBeenCalledWith(expect.stringContaining('🚀 test message'));
+      expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('🚀 test message'));
     });
 
     it('should format warn messages with default emoji', () => {
       const logger = new Logger('TestLogger');
       logger.warn('warning message');
 
-      expect(consoleSpy.warn).toHaveBeenCalledWith(expect.stringContaining('⚠️ warning message'));
+      expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('⚠️ warning message'));
     });
 
     it('should format error messages with default emoji', () => {
       const logger = new Logger('TestLogger');
       logger.error('error message');
 
-      expect(consoleSpy.error).toHaveBeenCalledWith(expect.stringContaining('❌ error message'));
+      expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('❌ error message'));
     });
   });
 
@@ -131,7 +121,8 @@ describe('Logger', () => {
 
       logger.debug('message', data);
 
-      expect(consoleSpy.log).toHaveBeenLastCalledWith(chalk.gray(JSON.stringify(data, null, 2)));
+      const calls = stdoutSpy.mock.calls;
+      expect(calls[calls.length - 1][0]).toBe(chalk.gray(JSON.stringify(data, null, 2)) + '\n');
     });
 
     it('should log warn data as JSON', () => {
@@ -140,7 +131,8 @@ describe('Logger', () => {
 
       logger.warn('warning', data);
 
-      expect(consoleSpy.warn).toHaveBeenLastCalledWith(chalk.yellow(JSON.stringify(data, null, 2)));
+      const calls = stderrSpy.mock.calls;
+      expect(calls[calls.length - 1][0]).toBe(chalk.yellow(JSON.stringify(data, null, 2)) + '\n');
     });
 
     it('should log error data as JSON', () => {
@@ -149,7 +141,8 @@ describe('Logger', () => {
 
       logger.error('error', data);
 
-      expect(consoleSpy.error).toHaveBeenLastCalledWith(chalk.red(JSON.stringify(data, null, 2)));
+      const calls = stderrSpy.mock.calls;
+      expect(calls[calls.length - 1][0]).toBe(chalk.red(JSON.stringify(data, null, 2)) + '\n');
     });
   });
 
@@ -163,14 +156,12 @@ describe('Logger', () => {
       logger.warn('warn');
       logger.error('error');
 
-      const allCalls = [
-        ...consoleSpy.log.mock.calls,
-        ...consoleSpy.warn.mock.calls,
-        ...consoleSpy.error.mock.calls,
-      ];
+      const allCalls = [...stdoutSpy.mock.calls, ...stderrSpy.mock.calls];
 
       allCalls.forEach((call) => {
-        expect(call[0]).toMatch(isoRegex);
+        if (typeof call[0] === 'string' && !call[0].startsWith('{')) {
+          expect(call[0]).toMatch(isoRegex);
+        }
       });
     });
   });

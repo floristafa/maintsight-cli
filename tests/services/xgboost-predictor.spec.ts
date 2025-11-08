@@ -1,5 +1,6 @@
 import { XGBoostPredictor } from '../../src/services/xgboost-predictor';
 import * as fs from 'fs/promises';
+import { FeatureEngineer } from '../../src/services/feature-engineer';
 
 jest.mock('fs/promises');
 jest.mock('../../src/services/feature-engineer');
@@ -7,9 +8,15 @@ jest.mock('../../src/services/feature-engineer');
 describe('XGBoostPredictor', () => {
   let predictor: XGBoostPredictor;
   const mockFs = fs as jest.Mocked<typeof fs>;
+  const mockFeatureEngineer = FeatureEngineer as jest.MockedClass<typeof FeatureEngineer>;
 
   beforeEach(() => {
     jest.clearAllMocks();
+
+    // Setup default mock behavior for FeatureEngineer
+    mockFeatureEngineer.prototype.transform = jest.fn();
+    mockFeatureEngineer.prototype.extractFeatureVector = jest.fn();
+
     predictor = new XGBoostPredictor();
   });
 
@@ -122,6 +129,32 @@ describe('XGBoostPredictor', () => {
         },
       ];
 
+      // Mock the transform method to return features
+      const mockFeatures = [
+        {
+          module: 'test.ts',
+          lines_added: 100,
+          lines_removed: 50,
+          prs: 10,
+          unique_authors: 3,
+          bug_prs: 2,
+          churn: 150,
+          bug_ratio: 0.2,
+          churn_per_pr: 15,
+          lines_per_pr: 15,
+          lines_per_author: 50,
+          author_concentration: 0.333,
+          add_del_ratio: 2,
+          deletion_ratio: 0.333,
+          bug_density: 0.013,
+          collaboration_complexity: 0.3,
+          feedback_count: 0,
+        },
+      ];
+
+      mockFeatureEngineer.prototype.transform.mockReturnValue(mockFeatures);
+      mockFeatureEngineer.prototype.extractFeatureVector.mockReturnValue([100, 50, 150]);
+
       const predictions = predictor.predict(commitData);
 
       expect(predictions).toHaveLength(1);
@@ -133,6 +166,17 @@ describe('XGBoostPredictor', () => {
     });
 
     it('should categorize risks correctly', () => {
+      // Mock transform to return features with module names
+      const mockFeatures = [
+        { module: 'file1.ts' },
+        { module: 'file2.ts' },
+        { module: 'file3.ts' },
+        { module: 'file4.ts' },
+      ] as any;
+
+      mockFeatureEngineer.prototype.transform.mockReturnValue(mockFeatures);
+      mockFeatureEngineer.prototype.extractFeatureVector.mockReturnValue([1, 2, 3]);
+
       // Mock the predictSingle method to return specific scores
       predictor['predictSingle'] = jest
         .fn()
@@ -157,6 +201,17 @@ describe('XGBoostPredictor', () => {
     });
 
     it('should calculate statistics correctly', () => {
+      // Mock transform to return features
+      const mockFeatures = [
+        { module: 'file1.ts' },
+        { module: 'file2.ts' },
+        { module: 'file3.ts' },
+        { module: 'file4.ts' },
+      ] as any;
+
+      mockFeatureEngineer.prototype.transform.mockReturnValue(mockFeatures);
+      mockFeatureEngineer.prototype.extractFeatureVector.mockReturnValue([1, 2, 3]);
+
       predictor['predictSingle'] = jest
         .fn()
         .mockReturnValueOnce(0.2)

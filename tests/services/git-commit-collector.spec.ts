@@ -3,29 +3,32 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 
 jest.mock('child_process');
-jest.mock('fs');
+jest.mock('fs', () => ({
+  ...jest.requireActual('fs'),
+  existsSync: jest.fn(),
+}));
 
 describe('GitCommitCollector', () => {
   const mockExecSync = execSync as jest.MockedFunction<typeof execSync>;
-  const mockFs = fs as jest.Mocked<typeof fs>;
+  const mockExistsSync = fs.existsSync as jest.MockedFunction<typeof fs.existsSync>;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockFs.existsSync = jest.fn().mockReturnValue(true);
-    mockExecSync.mockReturnValue(Buffer.from(''));
+    mockExistsSync.mockReturnValue(true);
+    mockExecSync.mockReturnValue('' as any);
   });
 
   describe('constructor', () => {
     it('should initialize with valid repository path', () => {
-      mockExecSync.mockReturnValueOnce(Buffer.from('')); // git rev-parse
-      mockExecSync.mockReturnValueOnce(Buffer.from('main\ndevelop\n')); // git branch
+      mockExecSync.mockReturnValueOnce('' as any); // git rev-parse
+      mockExecSync.mockReturnValueOnce('main\ndevelop\n' as any); // git branch
 
       const collector = new GitCommitCollector('/path/to/repo', 'main');
       expect(collector).toBeDefined();
     });
 
     it('should throw error if repository path does not exist', () => {
-      mockFs.existsSync.mockReturnValue(false);
+      mockExistsSync.mockReturnValue(false);
 
       expect(() => {
         new GitCommitCollector('/invalid/path', 'main');
@@ -43,8 +46,8 @@ describe('GitCommitCollector', () => {
     });
 
     it('should throw error if branch does not exist', () => {
-      mockExecSync.mockReturnValueOnce(Buffer.from('')); // git rev-parse
-      mockExecSync.mockReturnValueOnce(Buffer.from('main\ndevelop\n')); // git branch
+      mockExecSync.mockReturnValueOnce('' as any); // git rev-parse
+      mockExecSync.mockReturnValueOnce('main\ndevelop\n' as any); // git branch
 
       expect(() => {
         new GitCommitCollector('/path/to/repo', 'feature/nonexistent');
@@ -56,8 +59,8 @@ describe('GitCommitCollector', () => {
     let collector: GitCommitCollector;
 
     beforeEach(() => {
-      mockExecSync.mockReturnValueOnce(Buffer.from('')); // git rev-parse
-      mockExecSync.mockReturnValueOnce(Buffer.from('main\ndevelop\n')); // git branch
+      mockExecSync.mockReturnValueOnce('' as any); // git rev-parse
+      mockExecSync.mockReturnValueOnce('main\ndevelop\n' as any); // git branch
       collector = new GitCommitCollector('/path/to/repo', 'main');
     });
 
@@ -67,7 +70,7 @@ describe('GitCommitCollector', () => {
 def456|user2@example.com|1234567891|Add new feature
 20	0	src/feature.ts`;
 
-      mockExecSync.mockReturnValueOnce(Buffer.from(gitLogOutput));
+      mockExecSync.mockReturnValueOnce(gitLogOutput as any);
 
       const result = collector.fetchCommitData(100);
 
@@ -93,7 +96,7 @@ def456|user2@example.com|1234567891|Add new feature
 def456|user@example.com|1234567891|Fix bug
 10	5	src/index.ts`;
 
-      mockExecSync.mockReturnValueOnce(Buffer.from(gitLogOutput));
+      mockExecSync.mockReturnValueOnce(gitLogOutput as any);
 
       const result = collector.fetchCommitData(100);
 
@@ -109,7 +112,7 @@ def456|user2@example.com|1234567891|Fix bug 2
 ghi789|user@example.com|1234567892|Refactor
 15	10	src/parser.ts`;
 
-      mockExecSync.mockReturnValueOnce(Buffer.from(gitLogOutput));
+      mockExecSync.mockReturnValueOnce(gitLogOutput as any);
 
       const result = collector.fetchCommitData(100);
 
@@ -126,7 +129,7 @@ ghi789|user@example.com|1234567892|Refactor
       const gitLogOutput = `abc123|user@example.com|1234567890|Update docs
 5	2	README.md`;
 
-      mockExecSync.mockReturnValueOnce(Buffer.from(gitLogOutput));
+      mockExecSync.mockReturnValueOnce(gitLogOutput as any);
 
       const result = collector.fetchCommitData(100);
 
@@ -143,7 +146,7 @@ ghi789|user@example.com|1234567892|patch security vulnerability
 jkl012|user@example.com|1234567893|Add new feature
 20	0	src/feature.ts`;
 
-      mockExecSync.mockReturnValueOnce(Buffer.from(gitLogOutput));
+      mockExecSync.mockReturnValueOnce(gitLogOutput as any);
 
       const result = collector.fetchCommitData(100);
 
