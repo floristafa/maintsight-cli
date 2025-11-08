@@ -67,7 +67,7 @@ export class GitCommitCollector {
     // Verify it's a git repository
     try {
       execSync('git rev-parse --git-dir', { cwd: repoPath, stdio: 'ignore' });
-    } catch (e) {
+    } catch (_e: any) {
       throw new Error(`Invalid git repository: ${repoPath}`);
     }
 
