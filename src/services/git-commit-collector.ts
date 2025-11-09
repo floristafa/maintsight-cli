@@ -73,7 +73,11 @@ export class GitCommitCollector {
 
     // Verify branch exists
     try {
-      const branches = execSync('git branch -a', { cwd: repoPath, encoding: 'utf-8' });
+      const branches = execSync('git branch -a', {
+        cwd: repoPath,
+        encoding: 'utf-8',
+        maxBuffer: 10 * 1024 * 1024, // 10MB for branch listing
+      });
       if (!branches.includes(branch)) {
         throw new Error(`Branch '${branch}' not found`);
       }
@@ -96,7 +100,12 @@ export class GitCommitCollector {
 
     // Get commit list with file stats
     const gitLogCmd = `git log ${this.branch} --numstat --format="%H|%ae|%at|%s" -n ${maxCommits}`;
-    const logOutput = execSync(gitLogCmd, { cwd: this.repoPath, encoding: 'utf-8' });
+    // Increase maxBuffer to handle large outputs (50MB should be enough for thousands of commits)
+    const logOutput = execSync(gitLogCmd, {
+      cwd: this.repoPath,
+      encoding: 'utf-8',
+      maxBuffer: 50 * 1024 * 1024, // 50MB
+    });
 
     const fileStats: Map<string, FileStats> = new Map();
     const lines = logOutput.split('\n');
