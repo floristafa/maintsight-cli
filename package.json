@@ -74,6 +74,7 @@
     "dist",
     "models",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "package.json"
   ]
 }
