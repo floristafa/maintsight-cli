@@ -13,7 +13,7 @@
     "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && cp package.json dist/",
     "build:watch": "tsc -p tsconfig.build.json --watch",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -74,7 +74,6 @@
     "dist",
     "models",
     "README.md",
-    "LICENSE",
-    "package.json"
+    "LICENSE"
   ]
 }
