@@ -29,8 +29,7 @@ docs/
 !README.md
 !LICENSE
 
-# Lock files
-package-lock.json
+# Debug logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

@@ -1,10 +1,10 @@
 import { Command } from 'commander';
 import * as path from 'path';
-
 import chalk from 'chalk';
 import ora from 'ora';
 import { GitCommitCollector } from '../../src/services/git-commit-collector';
 import { XGBoostPredictor } from '../../src/services/xgboost-predictor';
+import { getPackageRoot } from '../utils/find-package-json';
 
 interface StatsOptions {
   branch?: string;
@@ -27,7 +27,9 @@ export function createStatsCommand(): Command {
       try {
         // Resolve paths
         const resolvedPath = path.resolve(repoPath);
-        const modelPath = path.join(__dirname, '../../../models/model.json');
+        // Find model path relative to package root
+        const packageRoot = getPackageRoot();
+        const modelPath = path.join(packageRoot, 'models', 'model.json');
 
         // Initialize services
         const predictor = new XGBoostPredictor();
