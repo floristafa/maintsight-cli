@@ -5,9 +5,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 // Read version from package.json
-const packageJson = JSON.parse(
-  fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf-8'),
-);
+const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf-8'));
 
 // Import commands
 import { createPredictCommand } from './commands/predict.command';
