@@ -28,17 +28,8 @@
     "moduleResolution": "node",
     "baseUrl": ".",
     "paths": {
-      "@agents/*": ["src/agents/*"],
-      "@orchestrator/*": ["src/orchestrator/*"],
-      "@scanners/*": ["src/scanners/*"],
-      "@parsers/*": ["src/parsers/*"],
-      "@prompts/*": ["src/prompts/*"],
-      "@llm/*": ["src/llm/*"],
-      "@outputs/*": ["src/outputs/*"],
-      "@config/*": ["src/config/*"],
-      "@cache/*": ["src/cache/*"],
+      "@cli/*": ["cli/*"],
       "@models/*": ["src/models/*"],
-      "@utils/*": ["src/utils/*"],
       "@types/*": ["src/types/*"]
     }
   },

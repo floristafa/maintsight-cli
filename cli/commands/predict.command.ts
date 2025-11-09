@@ -35,8 +35,11 @@ export function createPredictCommand(): Command {
         // Resolve paths
         const resolvedPath = path.resolve(repoPath);
         // Find model path relative to package root
-        const packageRoot = getPackageRoot();
+        console.error('DEBUG: __dirname =', __dirname);
+        const packageRoot = getPackageRoot(__dirname);
+        console.error('DEBUG: packageRoot =', packageRoot);
         const modelPath = path.join(packageRoot, 'models', 'model.json');
+        console.error('DEBUG: modelPath =', modelPath);
 
         // Initialize services
         spinner.text = 'Loading XGBoost model...';

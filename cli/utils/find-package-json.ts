@@ -32,11 +32,24 @@ export function findPackageJson(startDir: string = __dirname): any {
 export function getPackageRoot(startDir: string = __dirname): string {
   let currentDir = startDir;
 
+  // First, try to escape from dist directory if we're in one
+  // This handles the case where dist/package.json exists
+  while (currentDir.includes('/dist/') || currentDir.endsWith('/dist')) {
+    currentDir = path.dirname(currentDir);
+  }
+
+  // Now find package.json from here
   while (currentDir !== path.parse(currentDir).root) {
     const packageJsonPath = path.join(currentDir, 'package.json');
 
     if (fs.existsSync(packageJsonPath)) {
-      return currentDir;
+      // Additional check: the package root should have a dist folder or models folder
+      const distPath = path.join(currentDir, 'dist');
+      const modelsPath = path.join(currentDir, 'models');
+
+      if (fs.existsSync(distPath) || fs.existsSync(modelsPath)) {
+        return currentDir;
+      }
     }
 
     currentDir = path.dirname(currentDir);

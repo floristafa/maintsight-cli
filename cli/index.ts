@@ -8,7 +8,7 @@ import { createPredictCommand } from './commands/predict.command';
 import { createStatsCommand } from './commands/stats.command';
 
 // Read version from package.json using robust path resolution
-const packageJson = findPackageJson();
+const packageJson = findPackageJson(__dirname);
 
 const program = new Command();
 

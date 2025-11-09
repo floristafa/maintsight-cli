@@ -28,7 +28,7 @@ export function createStatsCommand(): Command {
         // Resolve paths
         const resolvedPath = path.resolve(repoPath);
         // Find model path relative to package root
-        const packageRoot = getPackageRoot();
+        const packageRoot = getPackageRoot(__dirname);
         const modelPath = path.join(packageRoot, 'models', 'model.json');
 
         // Initialize services
