@@ -15,7 +15,7 @@ export function findPackageJson(startDir: string = __dirname): any {
     if (fs.existsSync(packageJsonPath)) {
       try {
         return JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-      } catch (error) {
+      } catch {
         // Invalid package.json, continue searching
       }
     }
