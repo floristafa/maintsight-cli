@@ -2,6 +2,7 @@ import * as fs from 'fs/promises';
 import { FeatureEngineer } from './feature-engineer';
 import { CommitData, RiskPrediction, XGBoostModel, XGBoostTree } from '@interfaces';
 import { Logger } from '../utils/simple-logger';
+import { RiskCategory } from '../interfaces/risk-category.enum';
 
 export class XGBoostPredictor {
   private logger: Logger;
@@ -39,7 +40,7 @@ export class XGBoostPredictor {
   }
 
   /**
-   * Predict risk scores for commit data
+   * Predict risk scores for commit data with calibration
    */
   predict(commitData: Array<CommitData>): RiskPrediction[] {
     if (!this.model) {
@@ -51,33 +52,97 @@ export class XGBoostPredictor {
 
     this.logger.info(`Running inference on ${features.length} files...`, '🤖');
 
-    const predictions: RiskPrediction[] = features.map((feature) => {
+    // Get raw predictions
+    const rawPredictions = features.map((feature) => {
       const featureVector = this.featureEngineer.extractFeatureVector(feature);
-      const riskScore = this.predictSingle(featureVector);
-      const riskCategory = this.getRiskCategory(riskScore);
+      return this.predictSingle(featureVector);
+    });
+
+    // Apply prediction calibration
+    const calibratedScores = this.calibratePredictions(rawPredictions);
+
+    // Create final predictions with full feature data
+    const predictions: RiskPrediction[] = features.map((feature, index) => {
+      const degradationScore = calibratedScores[index];
+      const rawScore = rawPredictions[index];
+      const riskCategory = this.getRiskCategory(degradationScore);
 
       return {
-        module: feature.module,
-        risk_score: riskScore,
+        ...feature,
+        degradation_score: degradationScore,
+        raw_prediction: rawScore,
+        risk_score: degradationScore, // For backward compatibility
         risk_category: riskCategory,
       };
     });
 
     // Log statistics
-    const scores = predictions.map((p) => p.risk_score);
-    const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
-    const stdDev = Math.sqrt(
-      scores.reduce((sum, score) => sum + Math.pow(score - mean, 2), 0) / scores.length,
+    const rawMean = rawPredictions.reduce((a, b) => a + b, 0) / rawPredictions.length;
+    const calibratedMean = calibratedScores.reduce((a, b) => a + b, 0) / calibratedScores.length;
+    const calibratedStdDev = Math.sqrt(
+      calibratedScores.reduce((sum, score) => sum + Math.pow(score - calibratedMean, 2), 0) /
+        calibratedScores.length,
     );
-    const min = Math.min(...scores);
-    const max = Math.max(...scores);
+    const calibratedMin = Math.min(...calibratedScores);
+    const calibratedMax = Math.max(...calibratedScores);
 
     this.logger.info(`✅ Predictions complete`, '✅');
-    this.logger.info(`   Mean risk score: ${mean.toFixed(3)}`, '📊');
-    this.logger.info(`   Std dev: ${stdDev.toFixed(3)}`, '📊');
-    this.logger.info(`   Min: ${min.toFixed(3)}, Max: ${max.toFixed(3)}`, '📊');
+    this.logger.info(
+      `   Raw predictions - Mean: ${rawMean.toFixed(3)}, Range: [${Math.min(...rawPredictions).toFixed(3)}, ${Math.max(...rawPredictions).toFixed(3)}]`,
+      '📊',
+    );
+    this.logger.info(
+      `   Calibrated predictions - Mean: ${calibratedMean.toFixed(3)}, Range: [${calibratedMin.toFixed(3)}, ${calibratedMax.toFixed(3)}]`,
+      '📊',
+    );
+    this.logger.info(`   Std dev: ${calibratedStdDev.toFixed(3)}`, '📊');
+    this.logger.info(
+      `   📊 Calibration: Shifted mean from ${rawMean.toFixed(3)} to ${calibratedMean.toFixed(3)}`,
+      '📊',
+    );
 
     return predictions;
+  }
+
+  /**
+   * Calibrate predictions to match training data distribution.
+   * Training data statistics (from MongoDB):
+   * - Mean: -0.011
+   * - Std: 0.082
+   * - Range: [-0.531, 0.566]
+   *
+   * Strategy: Linear scaling + shift to map raw predictions to expected range
+   */
+  private calibratePredictions(predictions: number[]): number[] {
+    // Training data statistics
+    const TRAIN_MEAN = -0.011;
+    const TRAIN_STD = 0.082;
+    const TRAIN_MIN = -0.531;
+    const TRAIN_MAX = 0.566;
+
+    // Calculate raw prediction statistics
+    const rawMean = predictions.reduce((a: number, b: number) => a + b, 0) / predictions.length;
+    const rawStd = Math.sqrt(
+      predictions.reduce((sum: number, pred: number) => sum + Math.pow(pred - rawMean, 2), 0) /
+        predictions.length,
+    );
+
+    // Method 1: Z-score normalization then scale to training distribution
+    // This preserves relative differences while matching the target distribution
+    if (rawStd > 0) {
+      // Standardize (z-score) and scale to training distribution
+      const calibrated = predictions.map((pred) => {
+        const zScore = (pred - rawMean) / rawStd;
+        const scaled = zScore * TRAIN_STD + TRAIN_MEAN;
+        // Clip to training data range (with small buffer for unseen cases)
+        return Math.max(TRAIN_MIN - 0.1, Math.min(TRAIN_MAX + 0.1, scaled));
+      });
+
+      return calibrated;
+    } else {
+      // All predictions the same - just shift to training mean
+      return predictions.map(() => TRAIN_MEAN);
+    }
   }
 
   /**
@@ -147,23 +212,20 @@ export class XGBoostPredictor {
   }
 
   /**
-   * Categorize risk score into risk levels
+   * Categorize risk score into risk levels (matching Python script)
+   * Training data range: -0.53 to +0.57, avg: -0.01, stdDev: 0.082
+   * Bins based on actual training distribution:
+   * < 0: improved, 0-0.1: stable, 0.1-0.2: degraded, > 0.2: severely degraded
    */
-  private getRiskCategory(score: number): 'no-risk' | 'low-risk' | 'medium-risk' | 'high-risk' {
-    if (!this.model) {
-      return 'medium-risk';
-    }
-
-    const thresholds = this.model.risk_thresholds;
-
-    if (score <= thresholds.no_risk) {
-      return 'no-risk';
-    } else if (score <= thresholds.low_risk) {
-      return 'low-risk';
-    } else if (score <= thresholds.medium_risk) {
-      return 'medium-risk';
+  private getRiskCategory(score: number): RiskCategory {
+    if (score < 0) {
+      return RiskCategory.IMPROVED;
+    } else if (score <= 0.1) {
+      return RiskCategory.STABLE;
+    } else if (score <= 0.2) {
+      return RiskCategory.DEGRADED;
     } else {
-      return 'high-risk';
+      return RiskCategory.SEVERELY_DEGRADED;
     }
   }
 }

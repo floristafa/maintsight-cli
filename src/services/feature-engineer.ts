@@ -1,4 +1,4 @@
-import { CommitFeatures } from '@interfaces';
+import { CommitData } from '@interfaces';
 import { Logger } from '../utils/simple-logger';
 
 export class FeatureEngineer {
@@ -9,88 +9,83 @@ export class FeatureEngineer {
   }
 
   /**
-   * Transform raw commit data into ML features
+   * Generate the 12 engineered features used by the model (matches Python FeatureEngineer)
+   * Note: Base features (lines_per_author, churn_per_commit, bug_ratio, commits_per_day)
+   * are already calculated in GitCommitCollector to match training exactly.
    */
-  transform(data: Array<any>): CommitFeatures[] {
+  transform(data: CommitData[]): CommitData[] {
     this.logger.info(`Generating features for ${data.length} files...`, '⚙️');
 
     return data.map((record) => {
-      // Basic counts
-      const commits = Math.max(record.prs || 0, 1);
-      const authors = Math.max(record.unique_authors || 0, 1);
-      const lines_added = record.lines_added || 0;
-      const lines_deleted = record.lines_removed || 0;
-      const churn = lines_added + lines_deleted;
-      const bug_commits = record.bug_prs || 0;
+      const enhanced = { ...record };
 
-      // Calculate days active (difference between first and last commit)
-      const created = new Date(record.created_at);
-      const modified = new Date(record.last_modified);
-      const days_active = Math.max(
-        1,
-        Math.floor((modified.getTime() - created.getTime()) / (1000 * 60 * 60 * 24)) + 1,
-      );
+      // 1. net_lines - Code growth
+      if (record.lines_added !== undefined && record.lines_deleted !== undefined) {
+        enhanced.net_lines = record.lines_added - record.lines_deleted;
+      }
 
-      // Derived features
-      const lines_per_author = (lines_added + lines_deleted) / authors;
-      const churn_per_commit = churn / commits;
-      const bug_ratio = bug_commits / commits;
-      const commits_per_day = commits / days_active;
-      const net_lines = lines_added - lines_deleted;
+      // 2. code_stability - Churn relative to additions
+      if (record.lines_added !== undefined && record.churn !== undefined) {
+        enhanced.code_stability = record.churn / (record.lines_added + 1);
+      }
 
-      // Code stability (lower churn per commit = more stable)
-      const code_stability = commits > 0 ? 1 / (1 + churn_per_commit) : 0;
+      // 3. is_high_churn_commit - Binary flag for large changes
+      if (record.churn_per_commit !== undefined) {
+        enhanced.is_high_churn_commit = record.churn_per_commit > 100 ? 1 : 0;
+      }
 
-      // High churn indicator (1 if churn per commit > median, 0 otherwise)
-      // For now, using a threshold
-      const is_high_churn_commit = churn_per_commit > 50 ? 1 : 0;
+      // 4. bug_commit_rate - Proportion of bug commits
+      if (record.bug_commits !== undefined && record.commits !== undefined) {
+        enhanced.bug_commit_rate = record.bug_commits / (record.commits + 1);
+      }
 
-      const bug_commit_rate = days_active > 0 ? bug_commits / days_active : 0;
-      const commits_squared = commits * commits;
-      const author_concentration = 1 / authors;
-      const lines_per_commit = (lines_added + lines_deleted) / commits;
-      const churn_rate = churn / Math.max(1, net_lines);
-      const modification_ratio = lines_deleted / Math.max(1, lines_added);
-      const churn_per_author = churn / authors;
-      const deletion_rate = lines_deleted / Math.max(1, churn);
-      const commit_density = commits / days_active;
+      // 5. commits_squared - Non-linear commit activity
+      if (record.commits !== undefined) {
+        enhanced.commits_squared = record.commits * record.commits;
+      }
 
-      // We don't have data for these, so setting to 0
-      const refactor_commits = 0;
-      const feature_commits = commits - bug_commits; // Assume non-bug commits are features
-      const degradation_days = 0; // Would need performance metrics over time
+      // 6. author_concentration - Bus factor
+      if (record.authors !== undefined) {
+        enhanced.author_concentration = 1.0 / (record.authors + 1);
+      }
 
-      const features: CommitFeatures = {
-        module: record.module,
-        commits,
-        authors,
-        lines_added,
-        lines_deleted,
-        churn,
-        bug_commits,
-        refactor_commits,
-        feature_commits,
-        lines_per_author,
-        churn_per_commit,
-        bug_ratio,
-        days_active,
-        commits_per_day,
-        degradation_days,
-        net_lines,
-        code_stability,
-        is_high_churn_commit,
-        bug_commit_rate,
-        commits_squared,
-        author_concentration,
-        lines_per_commit,
-        churn_rate,
-        modification_ratio,
-        churn_per_author,
-        deletion_rate,
-        commit_density,
-      };
+      // 7. lines_per_commit - Average code change size
+      if (record.lines_added !== undefined && record.commits !== undefined) {
+        enhanced.lines_per_commit = record.lines_added / (record.commits + 1);
+      }
 
-      return features;
+      // 8. churn_rate - Churn velocity
+      if (record.churn !== undefined && record.days_active !== undefined) {
+        enhanced.churn_rate = record.churn / (record.days_active + 1);
+      }
+
+      // 9. modification_ratio - Deletion relative to addition
+      if (record.lines_added !== undefined && record.lines_deleted !== undefined) {
+        enhanced.modification_ratio = record.lines_deleted / (record.lines_added + 1);
+      }
+
+      // 10. churn_per_author - Code change per developer
+      if (record.churn !== undefined && record.authors !== undefined) {
+        enhanced.churn_per_author = record.churn / (record.authors + 1);
+      }
+
+      // 11. deletion_rate - Code removal rate
+      if (record.lines_deleted !== undefined && record.lines_added !== undefined) {
+        enhanced.deletion_rate =
+          record.lines_deleted / (record.lines_added + record.lines_deleted + 1);
+      }
+
+      // 12. commit_density - Commit frequency (same as commits_per_day)
+      if (record.commits !== undefined && record.days_active !== undefined) {
+        enhanced.commit_density = record.commits / (record.days_active + 1);
+      }
+
+      // 13. degradation_days - Same as days_active (temporal window for degradation)
+      if (record.days_active !== undefined) {
+        enhanced.degradation_days = record.days_active;
+      }
+
+      return enhanced;
     });
   }
 
@@ -98,7 +93,7 @@ export class FeatureEngineer {
    * Extract feature vector for model prediction
    * Order must match the model's expected feature order
    */
-  extractFeatureVector(features: CommitFeatures): number[] {
+  extractFeatureVector(features: CommitData): number[] {
     // This order must match the feature_names from the model exactly:
     // ['commits', 'authors', 'lines_added', 'lines_deleted', 'churn', 'bug_commits',
     //  'refactor_commits', 'feature_commits', 'lines_per_author', 'churn_per_commit',
@@ -120,19 +115,19 @@ export class FeatureEngineer {
       features.bug_ratio,
       features.days_active,
       features.commits_per_day,
-      features.degradation_days,
-      features.net_lines,
-      features.code_stability,
-      features.is_high_churn_commit,
-      features.bug_commit_rate,
-      features.commits_squared,
-      features.author_concentration,
-      features.lines_per_commit,
-      features.churn_rate,
-      features.modification_ratio,
-      features.churn_per_author,
-      features.deletion_rate,
-      features.commit_density,
+      features.degradation_days || 0,
+      features.net_lines || 0,
+      features.code_stability || 0,
+      features.is_high_churn_commit || 0,
+      features.bug_commit_rate || 0,
+      features.commits_squared || 0,
+      features.author_concentration || 0,
+      features.lines_per_commit || 0,
+      features.churn_rate || 0,
+      features.modification_ratio || 0,
+      features.churn_per_author || 0,
+      features.deletion_rate || 0,
+      features.commit_density || 0,
     ];
   }
 

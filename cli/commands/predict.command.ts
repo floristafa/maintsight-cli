@@ -10,8 +10,9 @@ import { getPackageRoot } from '../utils/find-package-json';
 interface PredictOptions {
   branch?: string;
   maxCommits?: number;
+  windowSizeDays?: number;
   output?: string;
-  format?: 'json' | 'csv' | 'markdown';
+  format?: 'json' | 'csv' | 'markdown' | 'html';
   threshold?: number;
   verbose?: boolean;
 }
@@ -23,10 +24,11 @@ export function createPredictCommand(): Command {
     .description('Run maintenance risk predictions on a git repository')
     .argument('[path]', 'Path to git repository (default: current directory)', '.')
     .option('-b, --branch <branch>', 'Git branch to analyze', 'main')
-    .option('-n, --max-commits <number>', 'Maximum number of commits to analyze', '300')
+    .option('-n, --max-commits <number>', 'Maximum number of commits to analyze', '10000')
+    .option('-w, --window-size-days <number>', 'Time window in days for commit analysis', '150')
     .option('-o, --output <path>', 'Output file path (default: stdout)')
-    .option('-f, --format <format>', 'Output format: json, csv, markdown', 'json')
-    .option('-t, --threshold <number>', 'Only show files above risk threshold (0-1)', '0')
+    .option('-f, --format <format>', 'Output format: json, csv, markdown, html', 'json')
+    .option('-t, --threshold <number>', 'Only show files above degradation threshold', '0')
     .option('-v, --verbose', 'Verbose output', false)
     .action(async (repoPath: string, options: PredictOptions) => {
       const spinner = ora('Initializing...').start();
@@ -48,8 +50,12 @@ export function createPredictCommand(): Command {
 
         // Collect git data
         spinner.text = `Analyzing git history (branch: ${options.branch})...`;
-        const gitCollector = new GitCommitCollector(resolvedPath, options.branch);
-        const commitData = gitCollector.fetchCommitData(options.maxCommits || 300);
+        const gitCollector = new GitCommitCollector(
+          resolvedPath,
+          options.branch || 'main',
+          options.windowSizeDays || 150,
+        );
+        const commitData = gitCollector.fetchCommitData(options.maxCommits || 10000);
 
         if (commitData.length === 0) {
           spinner.fail('No source files found in git history');
@@ -65,7 +71,7 @@ export function createPredictCommand(): Command {
         let results = predictions;
         const threshold = options.threshold ?? 0;
         if (threshold > 0) {
-          results = predictions.filter((p) => p.risk_score >= threshold);
+          results = predictions.filter((p) => (p.degradation_score || p.risk_score) >= threshold);
         }
 
         spinner.succeed(`Predictions complete: ${results.length} files analyzed`);
@@ -113,8 +119,13 @@ function formatResults(predictions: any[], format: string, repoPath: string): st
 }
 
 function formatAsCSV(predictions: any[]): string {
-  const headers = ['file', 'risk_score', 'risk_category'];
-  const rows = predictions.map((p) => [p.module, p.risk_score.toFixed(4), p.risk_category]);
+  const headers = ['module', 'degradation_score', 'raw_prediction', 'risk_category'];
+  const rows = predictions.map((p) => [
+    p.module,
+    (p.degradation_score || p.risk_score).toFixed(4),
+    (p.raw_prediction || p.risk_score).toFixed(4),
+    p.risk_category,
+  ]);
 
   return [headers.join(','), ...rows.map((row) => row.map((cell) => `"${cell}"`).join(','))].join(
     '\n',
@@ -125,7 +136,9 @@ function formatAsMarkdown(predictions: any[], repoPath: string): string {
   const repoName = path.basename(repoPath);
   const timestamp = new Date().toISOString();
 
-  const sortedPredictions = [...predictions].sort((a, b) => b.risk_score - a.risk_score);
+  const sortedPredictions = [...predictions].sort(
+    (a, b) => (b.degradation_score || b.risk_score) - (a.degradation_score || a.risk_score),
+  );
 
   const riskDist = predictions.reduce(
     (acc, p) => {
@@ -145,26 +158,29 @@ function formatAsMarkdown(predictions: any[], repoPath: string): string {
 
 | Risk Level | Count | Percentage |
 |------------|-------|------------|
-| High Risk | ${riskDist['high-risk'] || 0} | ${(((riskDist['high-risk'] || 0) / predictions.length) * 100).toFixed(1)}% |
-| Medium Risk | ${riskDist['medium-risk'] || 0} | ${(((riskDist['medium-risk'] || 0) / predictions.length) * 100).toFixed(1)}% |
-| Low Risk | ${riskDist['low-risk'] || 0} | ${(((riskDist['low-risk'] || 0) / predictions.length) * 100).toFixed(1)}% |
-| No Risk | ${riskDist['no-risk'] || 0} | ${(((riskDist['no-risk'] || 0) / predictions.length) * 100).toFixed(1)}% |
+| Severely Degraded | ${riskDist['severely-degraded'] || 0} | ${(((riskDist['severely-degraded'] || 0) / predictions.length) * 100).toFixed(1)}% |
+| Degraded | ${riskDist['degraded'] || 0} | ${(((riskDist['degraded'] || 0) / predictions.length) * 100).toFixed(1)}% |
+| Stable | ${riskDist['stable'] || 0} | ${(((riskDist['stable'] || 0) / predictions.length) * 100).toFixed(1)}% |
+| Improved | ${riskDist['improved'] || 0} | ${(((riskDist['improved'] || 0) / predictions.length) * 100).toFixed(1)}% |
 
 ## Top 20 High-Risk Files
 
-| File | Risk Score | Category |
-|------|------------|----------|
+| File | Degradation Score | Category |
+|------|------------------|----------|
 ${sortedPredictions
   .slice(0, 20)
-  .map((p) => `| \`${p.module}\` | ${p.risk_score.toFixed(4)} | ${p.risk_category} |`)
+  .map(
+    (p) =>
+      `| \`${p.module}\` | ${(p.degradation_score || p.risk_score).toFixed(4)} | ${p.risk_category} |`,
+  )
   .join('\n')}
 
 ## Risk Categories
 
-- **High Risk (0.65-1.00)**: Critical maintenance needed
-- **Medium Risk (0.47-0.65)**: Moderate attention required
-- **Low Risk (0.22-0.47)**: Minor maintenance needs
-- **No Risk (0.00-0.22)**: Well-maintained code
+- **Severely Degraded (> 0.2)**: Critical attention needed - code quality declining rapidly
+- **Degraded (0.1-0.2)**: Moderate degradation - consider refactoring
+- **Stable (0.0-0.1)**: Code quality stable - minimal degradation
+- **Improved (< 0.0)**: Code quality improving - good maintenance practices
 
 ---
 *Generated by Maintenance Predictor using XGBoost*`;
@@ -181,10 +197,10 @@ function showSummary(predictions: any[]): void {
 
   console.log(chalk.cyan('\nSummary:'));
   console.log(`Total files: ${predictions.length}`);
-  console.log(`High risk: ${chalk.red(riskDist['high-risk'] || 0)}`);
-  console.log(`Medium risk: ${chalk.yellow(riskDist['medium-risk'] || 0)}`);
-  console.log(`Low risk: ${chalk.green(riskDist['low-risk'] || 0)}`);
-  console.log(`No risk: ${chalk.gray(riskDist['no-risk'] || 0)}`);
+  console.log(`Severely degraded: ${chalk.red(riskDist['severely-degraded'] || 0)}`);
+  console.log(`Degraded: ${chalk.yellow(riskDist['degraded'] || 0)}`);
+  console.log(`Stable: ${chalk.blue(riskDist['stable'] || 0)}`);
+  console.log(`Improved: ${chalk.green(riskDist['improved'] || 0)}`);
 }
 
 async function saveResultsToMaintSight(predictions: any[], repoPath: string): Promise<void> {
@@ -232,10 +248,11 @@ async function saveResultsToMaintSight(predictions: any[], repoPath: string): Pr
 }
 
 function formatAsCSVWithTimestamp(predictions: any[]): string {
-  const headers = ['module', 'risk_score', 'risk_category', 'timestamp'];
+  const headers = ['module', 'degradation_score', 'raw_prediction', 'risk_category', 'timestamp'];
   const rows = predictions.map((p) => [
     p.module,
-    p.risk_score.toFixed(6),
+    (p.degradation_score || p.risk_score).toFixed(6),
+    (p.raw_prediction || p.risk_score).toFixed(6),
     p.risk_category,
     p.timestamp,
   ]);

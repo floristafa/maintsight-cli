@@ -80,13 +80,20 @@ def456|user2@example.com|1234567891|Add new feature
         filename: 'src/parser.ts',
         repo_name: 'repo',
         lines_added: 10,
-        lines_removed: 5,
-        prs: 1,
-        unique_authors: 1,
-        bug_prs: 1,
+        lines_deleted: 5,
+        commits: 1,
+        authors: 1,
+        bug_commits: 1,
+        refactor_commits: 0,
+        feature_commits: 0,
         churn: 15,
-        created_at: new Date(1234567890 * 1000),
-        last_modified: new Date(1234567890 * 1000),
+        lines_per_author: 10,
+        churn_per_commit: 15,
+        bug_ratio: 1,
+        days_active: 1,
+        commits_per_day: 1,
+        created_at: new Date('2009-02-13T23:31:30.000Z'),
+        last_modified: new Date('2009-02-13T23:31:30.000Z'),
       });
     });
 
@@ -118,10 +125,10 @@ ghi789|user@example.com|1234567892|Refactor
 
       expect(result).toHaveLength(1);
       expect(result[0].lines_added).toBe(30);
-      expect(result[0].lines_removed).toBe(18);
-      expect(result[0].prs).toBe(3);
-      expect(result[0].unique_authors).toBe(2);
-      expect(result[0].bug_prs).toBe(2);
+      expect(result[0].lines_deleted).toBe(18);
+      expect(result[0].commits).toBe(3);
+      expect(result[0].authors).toBe(2);
+      expect(result[0].bug_commits).toBe(2);
       expect(result[0].churn).toBe(48);
     });
 
@@ -150,11 +157,11 @@ jkl012|user@example.com|1234567893|Add new feature
 
       const result = collector.fetchCommitData(100);
 
-      const bugFixFiles = result.filter((f) => f.bug_prs > 0);
+      const bugFixFiles = result.filter((f) => f.bug_commits > 0);
       expect(bugFixFiles).toHaveLength(3);
 
       const featureFile = result.find((f) => f.module === 'src/feature.ts');
-      expect(featureFile?.bug_prs).toBe(0);
+      expect(featureFile?.bug_commits).toBe(0);
     });
   });
 

@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { GitCommitCollector } from '../../src/services/git-commit-collector';
 import { XGBoostPredictor } from '../../src/services/xgboost-predictor';
+import { RiskCategory } from '../../src/interfaces/risk-category.enum';
 import { getPackageRoot } from '../utils/find-package-json';
 
 interface StatsOptions {
@@ -93,19 +94,24 @@ function displayStatistics(
   );
 
   console.log(`\n${chalk.bold('Risk Distribution:')}`);
-  const categories = ['high-risk', 'medium-risk', 'low-risk', 'no-risk'];
+  const categories = [
+    RiskCategory.SEVERELY_DEGRADED,
+    RiskCategory.DEGRADED,
+    RiskCategory.STABLE,
+    RiskCategory.IMPROVED,
+  ];
   categories.forEach((cat) => {
     const count = riskDist[cat] || 0;
     const pct = ((count / totalFiles) * 100).toFixed(1);
     const color =
-      cat === 'high-risk'
+      cat === RiskCategory.SEVERELY_DEGRADED
         ? chalk.red
-        : cat === 'medium-risk'
+        : cat === RiskCategory.DEGRADED
           ? chalk.yellow
-          : cat === 'low-risk'
+          : cat === RiskCategory.STABLE
             ? chalk.green
             : chalk.gray;
-    console.log(`  ${color(cat.padEnd(12))}: ${count.toString().padStart(4)} files (${pct}%)`);
+    console.log(`  ${color(cat.padEnd(18))}: ${count.toString().padStart(4)} files (${pct}%)`);
   });
 
   // Commit statistics
@@ -126,11 +132,11 @@ function displayStatistics(
   console.log(`\n${chalk.bold('Top 10 High-Risk Files:')}`);
   topRisky.forEach((file, idx) => {
     const color =
-      file.risk_category === 'high-risk'
+      file.risk_category === RiskCategory.SEVERELY_DEGRADED
         ? chalk.red
-        : file.risk_category === 'medium-risk'
+        : file.risk_category === RiskCategory.DEGRADED
           ? chalk.yellow
-          : file.risk_category === 'low-risk'
+          : file.risk_category === RiskCategory.STABLE
             ? chalk.green
             : chalk.gray;
     console.log(

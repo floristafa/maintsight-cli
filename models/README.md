@@ -33,7 +33,7 @@ The expected JSON format includes:
 The model expects features in this order:
 
 1. `lines_added`
-2. `lines_removed`
+2. `lines_deleted`
 3. `prs` (number of commits)
 4. `unique_authors`
 5. `bug_prs` (bug fix commits)

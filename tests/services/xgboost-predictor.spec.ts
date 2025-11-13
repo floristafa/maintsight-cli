@@ -1,4 +1,5 @@
 import { FeatureEngineer, XGBoostPredictor } from '@services';
+import { RiskCategory } from '@interfaces/risk-category.enum';
 import * as fs from 'fs/promises';
 
 jest.mock('fs/promises');
@@ -72,7 +73,7 @@ describe('XGBoostPredictor', () => {
           learner_model_param: {
             base_score: '[0.5]',
           },
-          feature_names: ['lines_added', 'lines_removed'],
+          feature_names: ['lines_added', 'lines_deleted'],
           gradient_booster: {
             model: {
               trees: [
@@ -125,11 +126,18 @@ describe('XGBoostPredictor', () => {
           filename: 'test.ts',
           repo_name: 'test-repo',
           lines_added: 100,
-          lines_removed: 50,
-          prs: 10,
-          unique_authors: 3,
-          bug_prs: 2,
+          lines_deleted: 50,
+          commits: 10,
+          authors: 3,
+          bug_commits: 2,
+          refactor_commits: 1,
+          feature_commits: 7,
           churn: 150,
+          lines_per_author: 50,
+          churn_per_commit: 15,
+          bug_ratio: 0.2,
+          days_active: 30,
+          commits_per_day: 0.333,
           created_at: new Date('2024-01-01'),
           last_modified: new Date('2024-01-31'),
         },
@@ -139,6 +147,10 @@ describe('XGBoostPredictor', () => {
       const mockFeatures = [
         {
           module: 'test.ts',
+          filename: 'test.ts',
+          repo_name: 'test-repo',
+          created_at: new Date('2024-01-01'),
+          last_modified: new Date('2024-01-31'),
           commits: 10,
           authors: 3,
           lines_added: 100,
@@ -177,18 +189,94 @@ describe('XGBoostPredictor', () => {
       expect(predictions[0]).toHaveProperty('module', 'test.ts');
       expect(predictions[0]).toHaveProperty('risk_score');
       expect(predictions[0]).toHaveProperty('risk_category');
-      expect(predictions[0].risk_score).toBeGreaterThanOrEqual(0);
+      expect(predictions[0].risk_score).toBeGreaterThanOrEqual(-1);
       expect(predictions[0].risk_score).toBeLessThanOrEqual(1);
     });
 
     it('should categorize risks correctly', () => {
       // Mock transform to return features with module names
       const mockFeatures = [
-        { module: 'file1.ts' },
-        { module: 'file2.ts' },
-        { module: 'file3.ts' },
-        { module: 'file4.ts' },
-      ] as any;
+        {
+          module: 'file1.ts',
+          filename: 'file1.ts',
+          repo_name: 'test-repo',
+          created_at: new Date(),
+          last_modified: new Date(),
+          commits: 1,
+          authors: 1,
+          lines_added: 10,
+          lines_deleted: 5,
+          churn: 15,
+          bug_commits: 0,
+          refactor_commits: 0,
+          feature_commits: 1,
+          lines_per_author: 10,
+          churn_per_commit: 15,
+          bug_ratio: 0,
+          days_active: 1,
+          commits_per_day: 1,
+        },
+        {
+          module: 'file2.ts',
+          filename: 'file2.ts',
+          repo_name: 'test-repo',
+          created_at: new Date(),
+          last_modified: new Date(),
+          commits: 2,
+          authors: 1,
+          lines_added: 20,
+          lines_deleted: 10,
+          churn: 30,
+          bug_commits: 1,
+          refactor_commits: 0,
+          feature_commits: 1,
+          lines_per_author: 20,
+          churn_per_commit: 15,
+          bug_ratio: 0.5,
+          days_active: 2,
+          commits_per_day: 1,
+        },
+        {
+          module: 'file3.ts',
+          filename: 'file3.ts',
+          repo_name: 'test-repo',
+          created_at: new Date(),
+          last_modified: new Date(),
+          commits: 3,
+          authors: 2,
+          lines_added: 30,
+          lines_deleted: 15,
+          churn: 45,
+          bug_commits: 1,
+          refactor_commits: 0,
+          feature_commits: 2,
+          lines_per_author: 15,
+          churn_per_commit: 15,
+          bug_ratio: 0.33,
+          days_active: 3,
+          commits_per_day: 1,
+        },
+        {
+          module: 'file4.ts',
+          filename: 'file4.ts',
+          repo_name: 'test-repo',
+          created_at: new Date(),
+          last_modified: new Date(),
+          commits: 4,
+          authors: 2,
+          lines_added: 40,
+          lines_deleted: 20,
+          churn: 60,
+          bug_commits: 2,
+          refactor_commits: 0,
+          feature_commits: 2,
+          lines_per_author: 20,
+          churn_per_commit: 15,
+          bug_ratio: 0.5,
+          days_active: 4,
+          commits_per_day: 1,
+        },
+      ];
 
       mockFeatureEngineer.prototype.transform.mockReturnValue(mockFeatures);
       mockFeatureEngineer.prototype.extractFeatureVector.mockReturnValue([1, 2, 3]);
@@ -196,10 +284,10 @@ describe('XGBoostPredictor', () => {
       // Mock the predictSingle method to return specific scores
       predictor['predictSingle'] = jest
         .fn()
-        .mockReturnValueOnce(0.1) // no-risk
-        .mockReturnValueOnce(0.3) // low-risk
-        .mockReturnValueOnce(0.5) // medium-risk
-        .mockReturnValueOnce(0.8); // high-risk
+        .mockReturnValueOnce(0.05) // stable (will be calibrated to ~0.05)
+        .mockReturnValueOnce(0.15) // degraded (will be calibrated to ~0.15)
+        .mockReturnValueOnce(0.25) // severely_degraded (will be calibrated to ~0.25)
+        .mockReturnValueOnce(-0.05); // improved (will be calibrated to ~-0.05)
 
       const commitData = [
         {
@@ -207,11 +295,18 @@ describe('XGBoostPredictor', () => {
           filename: 'file1.ts',
           repo_name: 'test-repo',
           lines_added: 10,
-          lines_removed: 5,
-          prs: 1,
-          unique_authors: 1,
-          bug_prs: 0,
+          lines_deleted: 5,
+          commits: 1,
+          authors: 1,
+          bug_commits: 0,
+          refactor_commits: 0,
+          feature_commits: 1,
           churn: 15,
+          lines_per_author: 10,
+          churn_per_commit: 15,
+          bug_ratio: 0,
+          days_active: 1,
+          commits_per_day: 1,
           created_at: new Date(),
           last_modified: new Date(),
         },
@@ -220,11 +315,18 @@ describe('XGBoostPredictor', () => {
           filename: 'file2.ts',
           repo_name: 'test-repo',
           lines_added: 20,
-          lines_removed: 10,
-          prs: 2,
-          unique_authors: 1,
-          bug_prs: 1,
+          lines_deleted: 10,
+          commits: 2,
+          authors: 1,
+          bug_commits: 1,
+          refactor_commits: 0,
+          feature_commits: 1,
           churn: 30,
+          lines_per_author: 20,
+          churn_per_commit: 15,
+          bug_ratio: 0.5,
+          days_active: 2,
+          commits_per_day: 1,
           created_at: new Date(),
           last_modified: new Date(),
         },
@@ -233,11 +335,18 @@ describe('XGBoostPredictor', () => {
           filename: 'file3.ts',
           repo_name: 'test-repo',
           lines_added: 30,
-          lines_removed: 15,
-          prs: 3,
-          unique_authors: 2,
-          bug_prs: 1,
+          lines_deleted: 15,
+          commits: 3,
+          authors: 2,
+          bug_commits: 1,
+          refactor_commits: 0,
+          feature_commits: 2,
           churn: 45,
+          lines_per_author: 15,
+          churn_per_commit: 15,
+          bug_ratio: 0.33,
+          days_active: 3,
+          commits_per_day: 1,
           created_at: new Date(),
           last_modified: new Date(),
         },
@@ -246,11 +355,18 @@ describe('XGBoostPredictor', () => {
           filename: 'file4.ts',
           repo_name: 'test-repo',
           lines_added: 40,
-          lines_removed: 20,
-          prs: 4,
-          unique_authors: 2,
-          bug_prs: 2,
+          lines_deleted: 20,
+          commits: 4,
+          authors: 2,
+          bug_commits: 2,
+          refactor_commits: 0,
+          feature_commits: 2,
           churn: 60,
+          lines_per_author: 20,
+          churn_per_commit: 15,
+          bug_ratio: 0.5,
+          days_active: 4,
+          commits_per_day: 1,
           created_at: new Date(),
           last_modified: new Date(),
         },
@@ -258,20 +374,98 @@ describe('XGBoostPredictor', () => {
 
       const predictions = predictor.predict(commitData);
 
-      expect(predictions[0].risk_category).toBe('no-risk');
-      expect(predictions[1].risk_category).toBe('low-risk');
-      expect(predictions[2].risk_category).toBe('medium-risk');
-      expect(predictions[3].risk_category).toBe('high-risk');
+      // Based on the calibration output, the scores will be:
+      // Raw: [0.05, 0.15, 0.25, -0.05] -> Calibrated: range [-0.121, 0.099]
+      expect(predictions[0].risk_category).toBe(RiskCategory.IMPROVED); // calibrated to negative value
+      expect(predictions[1].risk_category).toBe(RiskCategory.STABLE); // calibrated to small positive value
+      expect(predictions[2].risk_category).toBe(RiskCategory.STABLE); // calibrated to positive value
+      expect(predictions[3].risk_category).toBe(RiskCategory.IMPROVED); // calibrated to most negative value
     });
 
     it('should calculate statistics correctly', () => {
       // Mock transform to return features
       const mockFeatures = [
-        { module: 'file1.ts' },
-        { module: 'file2.ts' },
-        { module: 'file3.ts' },
-        { module: 'file4.ts' },
-      ] as any;
+        {
+          module: 'file1.ts',
+          filename: 'file1.ts',
+          repo_name: 'test-repo',
+          created_at: new Date(),
+          last_modified: new Date(),
+          commits: 1,
+          authors: 1,
+          lines_added: 10,
+          lines_deleted: 5,
+          churn: 15,
+          bug_commits: 0,
+          refactor_commits: 0,
+          feature_commits: 1,
+          lines_per_author: 10,
+          churn_per_commit: 15,
+          bug_ratio: 0,
+          days_active: 1,
+          commits_per_day: 1,
+        },
+        {
+          module: 'file2.ts',
+          filename: 'file2.ts',
+          repo_name: 'test-repo',
+          created_at: new Date(),
+          last_modified: new Date(),
+          commits: 2,
+          authors: 1,
+          lines_added: 20,
+          lines_deleted: 10,
+          churn: 30,
+          bug_commits: 0,
+          refactor_commits: 0,
+          feature_commits: 2,
+          lines_per_author: 20,
+          churn_per_commit: 15,
+          bug_ratio: 0,
+          days_active: 2,
+          commits_per_day: 1,
+        },
+        {
+          module: 'file3.ts',
+          filename: 'file3.ts',
+          repo_name: 'test-repo',
+          created_at: new Date(),
+          last_modified: new Date(),
+          commits: 3,
+          authors: 2,
+          lines_added: 30,
+          lines_deleted: 15,
+          churn: 45,
+          bug_commits: 1,
+          refactor_commits: 0,
+          feature_commits: 2,
+          lines_per_author: 15,
+          churn_per_commit: 15,
+          bug_ratio: 0.33,
+          days_active: 3,
+          commits_per_day: 1,
+        },
+        {
+          module: 'file4.ts',
+          filename: 'file4.ts',
+          repo_name: 'test-repo',
+          created_at: new Date(),
+          last_modified: new Date(),
+          commits: 4,
+          authors: 2,
+          lines_added: 40,
+          lines_deleted: 20,
+          churn: 60,
+          bug_commits: 1,
+          refactor_commits: 0,
+          feature_commits: 3,
+          lines_per_author: 20,
+          churn_per_commit: 15,
+          bug_ratio: 0.25,
+          days_active: 4,
+          commits_per_day: 1,
+        },
+      ];
 
       mockFeatureEngineer.prototype.transform.mockReturnValue(mockFeatures);
       mockFeatureEngineer.prototype.extractFeatureVector.mockReturnValue([1, 2, 3]);
@@ -289,11 +483,18 @@ describe('XGBoostPredictor', () => {
           filename: 'file1.ts',
           repo_name: 'test-repo',
           lines_added: 10,
-          lines_removed: 5,
-          prs: 1,
-          unique_authors: 1,
-          bug_prs: 0,
+          lines_deleted: 5,
+          commits: 1,
+          authors: 1,
+          bug_commits: 0,
+          refactor_commits: 0,
+          feature_commits: 1,
           churn: 15,
+          lines_per_author: 10,
+          churn_per_commit: 15,
+          bug_ratio: 0,
+          days_active: 1,
+          commits_per_day: 1,
           created_at: new Date(),
           last_modified: new Date(),
         },
@@ -302,11 +503,18 @@ describe('XGBoostPredictor', () => {
           filename: 'file2.ts',
           repo_name: 'test-repo',
           lines_added: 20,
-          lines_removed: 10,
-          prs: 2,
-          unique_authors: 1,
-          bug_prs: 0,
+          lines_deleted: 10,
+          commits: 2,
+          authors: 1,
+          bug_commits: 0,
+          refactor_commits: 0,
+          feature_commits: 2,
           churn: 30,
+          lines_per_author: 20,
+          churn_per_commit: 15,
+          bug_ratio: 0,
+          days_active: 2,
+          commits_per_day: 1,
           created_at: new Date(),
           last_modified: new Date(),
         },
@@ -315,11 +523,18 @@ describe('XGBoostPredictor', () => {
           filename: 'file3.ts',
           repo_name: 'test-repo',
           lines_added: 30,
-          lines_removed: 15,
-          prs: 3,
-          unique_authors: 2,
-          bug_prs: 1,
+          lines_deleted: 15,
+          commits: 3,
+          authors: 2,
+          bug_commits: 1,
+          refactor_commits: 0,
+          feature_commits: 2,
           churn: 45,
+          lines_per_author: 15,
+          churn_per_commit: 15,
+          bug_ratio: 0.33,
+          days_active: 3,
+          commits_per_day: 1,
           created_at: new Date(),
           last_modified: new Date(),
         },
@@ -328,11 +543,18 @@ describe('XGBoostPredictor', () => {
           filename: 'file4.ts',
           repo_name: 'test-repo',
           lines_added: 40,
-          lines_removed: 20,
-          prs: 4,
-          unique_authors: 2,
-          bug_prs: 1,
+          lines_deleted: 20,
+          commits: 4,
+          authors: 2,
+          bug_commits: 1,
+          refactor_commits: 0,
+          feature_commits: 3,
           churn: 60,
+          lines_per_author: 20,
+          churn_per_commit: 15,
+          bug_ratio: 0.25,
+          days_active: 4,
+          commits_per_day: 1,
           created_at: new Date(),
           last_modified: new Date(),
         },
@@ -343,9 +565,9 @@ describe('XGBoostPredictor', () => {
 
       predictor.predict(commitData);
 
-      // Check that statistics were logged
+      // Check that statistics were logged (new format shows raw and calibrated separately)
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Mean risk score: 0.500'),
+        expect.stringContaining('Raw predictions - Mean: 0.500'),
         '📊',
       );
     });
@@ -378,24 +600,24 @@ describe('XGBoostPredictor', () => {
       await predictor.loadModel('/path/to/model.json');
     });
 
-    it('should categorize no-risk correctly', () => {
-      expect(predictor['getRiskCategory'](0.1)).toBe('no-risk');
-      expect(predictor['getRiskCategory'](0.22)).toBe('no-risk');
+    it('should categorize improved correctly', () => {
+      expect(predictor['getRiskCategory'](-0.1)).toBe(RiskCategory.IMPROVED);
+      expect(predictor['getRiskCategory'](-0.01)).toBe(RiskCategory.IMPROVED);
     });
 
-    it('should categorize low-risk correctly', () => {
-      expect(predictor['getRiskCategory'](0.23)).toBe('low-risk');
-      expect(predictor['getRiskCategory'](0.47)).toBe('low-risk');
+    it('should categorize stable correctly', () => {
+      expect(predictor['getRiskCategory'](0.0)).toBe(RiskCategory.STABLE);
+      expect(predictor['getRiskCategory'](0.1)).toBe(RiskCategory.STABLE);
     });
 
-    it('should categorize medium-risk correctly', () => {
-      expect(predictor['getRiskCategory'](0.48)).toBe('medium-risk');
-      expect(predictor['getRiskCategory'](0.65)).toBe('medium-risk');
+    it('should categorize degraded correctly', () => {
+      expect(predictor['getRiskCategory'](0.11)).toBe(RiskCategory.DEGRADED);
+      expect(predictor['getRiskCategory'](0.2)).toBe(RiskCategory.DEGRADED);
     });
 
-    it('should categorize high-risk correctly', () => {
-      expect(predictor['getRiskCategory'](0.66)).toBe('high-risk');
-      expect(predictor['getRiskCategory'](1.0)).toBe('high-risk');
+    it('should categorize severely degraded correctly', () => {
+      expect(predictor['getRiskCategory'](0.21)).toBe(RiskCategory.SEVERELY_DEGRADED);
+      expect(predictor['getRiskCategory'](0.5)).toBe(RiskCategory.SEVERELY_DEGRADED);
     });
   });
 

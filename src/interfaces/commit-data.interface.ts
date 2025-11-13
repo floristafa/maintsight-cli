@@ -1,13 +1,37 @@
 export interface CommitData {
+  // Base Git features
   module: string;
+  commits: number;
+  authors: number;
+  lines_added: number;
+  lines_deleted: number;
+  churn: number;
+  bug_commits: number;
+  refactor_commits: number;
+  feature_commits: number;
+  lines_per_author: number;
+  churn_per_commit: number;
+  bug_ratio: number;
+  days_active: number;
+  commits_per_day: number;
+
+  // Engineered features
+  degradation_days?: number;
+  net_lines?: number;
+  code_stability?: number;
+  is_high_churn_commit?: number;
+  bug_commit_rate?: number;
+  commits_squared?: number;
+  author_concentration?: number;
+  lines_per_commit?: number;
+  churn_rate?: number;
+  modification_ratio?: number;
+  churn_per_author?: number;
+  deletion_rate?: number;
+  commit_density?: number;
+
   filename: string;
   repo_name: string;
-  lines_added: number;
-  lines_removed: number;
-  prs: number;
-  unique_authors: number;
-  bug_prs: number;
-  churn: number;
   created_at: Date;
   last_modified: Date;
 }

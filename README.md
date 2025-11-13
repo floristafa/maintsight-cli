@@ -215,7 +215,7 @@ MaintSight uses an XGBoost model trained on software maintenance patterns. The m
 ### Primary Features
 
 - **lines_added**: Total lines added
-- **lines_removed**: Total lines removed
+- **lines_deleted**: Total lines removed
 - **churn**: Total code churn
 - **prs**: Number of commits
 - **unique_authors**: Number of contributors
