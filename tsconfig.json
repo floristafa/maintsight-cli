@@ -30,7 +30,12 @@
     "paths": {
       "@cli/*": ["cli/*"],
       "@models/*": ["src/models/*"],
-      "@types/*": ["src/types/*"]
+      "@types/*": ["src/types/*"],
+      "@services/*": ["src/services/*"],
+      "@services": ["src/services"],
+      "@utils/*": ["src/utils/*"],
+      "@interfaces": ["src/interfaces"],
+      "@interfaces/*": ["src/interfaces/*"]
     }
   },
   "include": ["src/**/*", "cli/**/*", "tests/**/*"],

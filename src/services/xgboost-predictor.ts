@@ -1,47 +1,7 @@
 import * as fs from 'fs/promises';
-import { Logger } from '../utils/simple-logger';
 import { FeatureEngineer } from './feature-engineer';
-
-interface XGBoostTree {
-  nodeid: number;
-  depth: number;
-  split?: string;
-  split_condition?: number;
-  yes?: number;
-  no?: number;
-  missing?: number;
-  children?: XGBoostTree[];
-  leaf?: number;
-}
-
-interface XGBoostModel {
-  model_type: string;
-  model_data: {
-    learner: {
-      gradient_booster: {
-        model: {
-          trees: Array<{
-            tree: XGBoostTree;
-          }>;
-        };
-      };
-    };
-  };
-  feature_names: string[];
-  feature_count: number;
-  risk_thresholds: {
-    no_risk: number;
-    low_risk: number;
-    medium_risk: number;
-    high_risk: number;
-  };
-}
-
-export interface RiskPrediction {
-  module: string;
-  risk_score: number;
-  risk_category: 'no-risk' | 'low-risk' | 'medium-risk' | 'high-risk';
-}
+import { CommitData, RiskPrediction, XGBoostModel, XGBoostTree } from '@interfaces';
+import { Logger } from '../utils/simple-logger';
 
 export class XGBoostPredictor {
   private logger: Logger;
@@ -61,6 +21,16 @@ export class XGBoostPredictor {
       this.logger.info(`Loading model from ${modelPath}...`, '📁');
       const modelData = await fs.readFile(modelPath, 'utf-8');
       this.model = JSON.parse(modelData);
+
+      // Handle feature_names being in different locations
+      if (
+        this.model &&
+        !this.model.feature_names &&
+        this.model.model_data?.learner?.feature_names
+      ) {
+        this.model.feature_names = this.model.model_data.learner.feature_names;
+      }
+
       this.logger.info(`✅ Model loaded successfully`, '✅');
       this.logger.info(`Feature count: ${this.model?.feature_count}`, '📊');
     } catch (error) {
@@ -71,7 +41,7 @@ export class XGBoostPredictor {
   /**
    * Predict risk scores for commit data
    */
-  predict(commitData: Array<any>): RiskPrediction[] {
+  predict(commitData: Array<CommitData>): RiskPrediction[] {
     if (!this.model) {
       throw new Error('Model not loaded. Call loadModel() first.');
     }
@@ -123,6 +93,16 @@ export class XGBoostPredictor {
     // Base score from model or default
     let score = 0.5; // Default base score for binary classification
 
+    // Try to get base_score from the new model format
+    if (this.model.model_data?.learner?.learner_model_param?.base_score) {
+      const baseScoreStr = this.model.model_data.learner.learner_model_param.base_score;
+      // Handle the base_score being in array format like "[-1.201454E-2]"
+      const match = baseScoreStr.match(/\[([-\d.eE]+)\]/);
+      if (match) {
+        score = parseFloat(match[1]);
+      }
+    }
+
     // Get trees - handle different model structures
     const trees = this.model.model_data?.learner?.gradient_booster?.model?.trees || [];
 
@@ -131,8 +111,7 @@ export class XGBoostPredictor {
       return score;
     }
 
-    for (const treeData of trees) {
-      const tree = treeData.tree || treeData;
+    for (const tree of trees) {
       score += this.predictTree(tree, features);
     }
 
@@ -143,74 +122,28 @@ export class XGBoostPredictor {
   /**
    * Traverse a single tree to get prediction
    */
-  private predictTree(tree: any, features: number[]): number {
-    // Handle different tree structures
-    if (Array.isArray(tree)) {
-      // Tree is an array of nodes
-      return this.predictTreeArray(tree, features, 0);
-    } else if (tree.nodes) {
-      // Tree has a nodes array
-      return this.predictTreeArray(tree.nodes, features, 0);
-    } else {
-      // Tree is a single node structure
-      return this.predictTreeNode(tree, features);
-    }
-  }
+  private predictTree(tree: XGBoostTree, features: number[]): number {
+    let nodeId = 0; // Start at root node
 
-  /**
-   * Traverse tree represented as array of nodes
-   */
-  private predictTreeArray(nodes: any[], features: number[], nodeId: number): number {
-    const node = nodes[nodeId];
-
-    if (node.leaf !== undefined) {
-      return node.leaf;
-    }
-
-    const featureIndex = node.split || 0;
-    const featureValue = features[featureIndex];
-
-    if (featureValue < (node.split_condition || 0)) {
-      return this.predictTreeArray(nodes, features, node.yes || 0);
-    } else {
-      return this.predictTreeArray(nodes, features, node.no || 0);
-    }
-  }
-
-  /**
-   * Traverse tree represented as nested node structure
-   */
-  private predictTreeNode(node: XGBoostTree, features: number[]): number {
-    // If it's a leaf node, return the value
-    if (node.leaf !== undefined) {
-      return node.leaf;
-    }
-
-    // Get feature index from split name (e.g., "f5" -> 5)
-    const featureIndex = parseInt(node.split?.replace('f', '') || '0');
-    const featureValue = features[featureIndex];
-
-    // Determine which child to follow
-    if (featureValue < (node.split_condition || 0)) {
-      // Go to 'yes' child (left)
-      if (node.yes !== undefined && node.children) {
-        const yesChild = node.children.find((c) => c.nodeid === node.yes);
-        if (yesChild) {
-          return this.predictTreeNode(yesChild, features);
-        }
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      // Check if it's a leaf node
+      if (tree.left_children[nodeId] === -1) {
+        return tree.base_weights[nodeId];
       }
-    } else {
-      // Go to 'no' child (right)
-      if (node.no !== undefined && node.children) {
-        const noChild = node.children.find((c) => c.nodeid === node.no);
-        if (noChild) {
-          return this.predictTreeNode(noChild, features);
-        }
+
+      // Get feature value
+      const featureIndex = tree.split_indices[nodeId];
+      const featureValue = features[featureIndex];
+      const splitCondition = tree.split_conditions[nodeId];
+
+      // Determine next node
+      if (featureValue < splitCondition) {
+        nodeId = tree.left_children[nodeId];
+      } else {
+        nodeId = tree.right_children[nodeId];
       }
     }
-
-    // Fallback
-    return 0;
   }
 
   /**

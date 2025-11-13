@@ -1,24 +1,5 @@
+import { CommitFeatures } from '@interfaces';
 import { Logger } from '../utils/simple-logger';
-
-export interface CommitFeatures {
-  module: string;
-  lines_added: number;
-  lines_removed: number;
-  churn: number;
-  prs: number;
-  unique_authors: number;
-  bug_prs: number;
-  bug_ratio: number;
-  churn_per_pr: number;
-  lines_per_pr: number;
-  lines_per_author: number;
-  author_concentration: number;
-  add_del_ratio: number;
-  deletion_ratio: number;
-  bug_density: number;
-  collaboration_complexity: number;
-  feedback_count: number;
-}
 
 export class FeatureEngineer {
   private logger: Logger;
@@ -34,33 +15,79 @@ export class FeatureEngineer {
     this.logger.info(`Generating features for ${data.length} files...`, '⚙️');
 
     return data.map((record) => {
-      // Replace 0 values to avoid division by zero
-      const prs = Math.max(record.prs, 1);
-      const unique_authors = Math.max(record.unique_authors, 1);
-      const lines_removed = Math.max(record.lines_removed, 1);
-      const churn = record.churn || record.lines_added + record.lines_removed;
+      // Basic counts
+      const commits = Math.max(record.prs || 0, 1);
+      const authors = Math.max(record.unique_authors || 0, 1);
+      const lines_added = record.lines_added || 0;
+      const lines_deleted = record.lines_removed || 0;
+      const churn = lines_added + lines_deleted;
+      const bug_commits = record.bug_prs || 0;
 
-      const total_lines = record.lines_added + record.lines_removed;
-      const total_lines_safe = Math.max(total_lines, 1);
+      // Calculate days active (difference between first and last commit)
+      const created = new Date(record.created_at);
+      const modified = new Date(record.last_modified);
+      const days_active = Math.max(
+        1,
+        Math.floor((modified.getTime() - created.getTime()) / (1000 * 60 * 60 * 24)) + 1,
+      );
+
+      // Derived features
+      const lines_per_author = (lines_added + lines_deleted) / authors;
+      const churn_per_commit = churn / commits;
+      const bug_ratio = bug_commits / commits;
+      const commits_per_day = commits / days_active;
+      const net_lines = lines_added - lines_deleted;
+
+      // Code stability (lower churn per commit = more stable)
+      const code_stability = commits > 0 ? 1 / (1 + churn_per_commit) : 0;
+
+      // High churn indicator (1 if churn per commit > median, 0 otherwise)
+      // For now, using a threshold
+      const is_high_churn_commit = churn_per_commit > 50 ? 1 : 0;
+
+      const bug_commit_rate = days_active > 0 ? bug_commits / days_active : 0;
+      const commits_squared = commits * commits;
+      const author_concentration = 1 / authors;
+      const lines_per_commit = (lines_added + lines_deleted) / commits;
+      const churn_rate = churn / Math.max(1, net_lines);
+      const modification_ratio = lines_deleted / Math.max(1, lines_added);
+      const churn_per_author = churn / authors;
+      const deletion_rate = lines_deleted / Math.max(1, churn);
+      const commit_density = commits / days_active;
+
+      // We don't have data for these, so setting to 0
+      const refactor_commits = 0;
+      const feature_commits = commits - bug_commits; // Assume non-bug commits are features
+      const degradation_days = 0; // Would need performance metrics over time
 
       const features: CommitFeatures = {
         module: record.module,
-        lines_added: record.lines_added,
-        lines_removed: record.lines_removed,
-        churn: churn,
-        prs: record.prs,
-        unique_authors: record.unique_authors,
-        bug_prs: record.bug_prs,
-        bug_ratio: record.bug_prs / prs,
-        churn_per_pr: churn / prs,
-        lines_per_pr: total_lines / prs,
-        lines_per_author: total_lines / unique_authors,
-        author_concentration: 1 / unique_authors, // Inverse of unique authors
-        add_del_ratio: record.lines_added / lines_removed,
-        deletion_ratio: record.lines_removed / total_lines_safe,
-        bug_density: record.bug_prs / total_lines_safe,
-        collaboration_complexity: unique_authors * (churn / prs),
-        feedback_count: 0, // Default to 0 as we don't have feedback data
+        commits,
+        authors,
+        lines_added,
+        lines_deleted,
+        churn,
+        bug_commits,
+        refactor_commits,
+        feature_commits,
+        lines_per_author,
+        churn_per_commit,
+        bug_ratio,
+        days_active,
+        commits_per_day,
+        degradation_days,
+        net_lines,
+        code_stability,
+        is_high_churn_commit,
+        bug_commit_rate,
+        commits_squared,
+        author_concentration,
+        lines_per_commit,
+        churn_rate,
+        modification_ratio,
+        churn_per_author,
+        deletion_rate,
+        commit_density,
       };
 
       return features;
@@ -72,24 +99,40 @@ export class FeatureEngineer {
    * Order must match the model's expected feature order
    */
   extractFeatureVector(features: CommitFeatures): number[] {
-    // This order must match the feature_names from the model exactly
+    // This order must match the feature_names from the model exactly:
+    // ['commits', 'authors', 'lines_added', 'lines_deleted', 'churn', 'bug_commits',
+    //  'refactor_commits', 'feature_commits', 'lines_per_author', 'churn_per_commit',
+    //  'bug_ratio', 'days_active', 'commits_per_day', 'degradation_days', 'net_lines',
+    //  'code_stability', 'is_high_churn_commit', 'bug_commit_rate', 'commits_squared',
+    //  'author_concentration', 'lines_per_commit', 'churn_rate', 'modification_ratio',
+    //  'churn_per_author', 'deletion_rate', 'commit_density']
     return [
+      features.commits,
+      features.authors,
       features.lines_added,
-      features.lines_removed,
+      features.lines_deleted,
       features.churn,
-      features.prs,
-      features.unique_authors,
-      features.bug_prs,
-      features.bug_ratio,
-      features.churn_per_pr,
-      features.lines_per_pr,
+      features.bug_commits,
+      features.refactor_commits,
+      features.feature_commits,
       features.lines_per_author,
+      features.churn_per_commit,
+      features.bug_ratio,
+      features.days_active,
+      features.commits_per_day,
+      features.degradation_days,
+      features.net_lines,
+      features.code_stability,
+      features.is_high_churn_commit,
+      features.bug_commit_rate,
+      features.commits_squared,
       features.author_concentration,
-      features.add_del_ratio,
-      features.deletion_ratio,
-      features.bug_density,
-      features.collaboration_complexity,
-      features.feedback_count,
+      features.lines_per_commit,
+      features.churn_rate,
+      features.modification_ratio,
+      features.churn_per_author,
+      features.deletion_rate,
+      features.commit_density,
     ];
   }
 
@@ -98,22 +141,32 @@ export class FeatureEngineer {
    */
   getFeatureNames(): string[] {
     return [
+      'commits',
+      'authors',
       'lines_added',
-      'lines_removed',
+      'lines_deleted',
       'churn',
-      'prs',
-      'unique_authors',
-      'bug_prs',
-      'bug_ratio',
-      'churn_per_pr',
-      'lines_per_pr',
+      'bug_commits',
+      'refactor_commits',
+      'feature_commits',
       'lines_per_author',
+      'churn_per_commit',
+      'bug_ratio',
+      'days_active',
+      'commits_per_day',
+      'degradation_days',
+      'net_lines',
+      'code_stability',
+      'is_high_churn_commit',
+      'bug_commit_rate',
+      'commits_squared',
       'author_concentration',
-      'add_del_ratio',
-      'deletion_ratio',
-      'bug_density',
-      'collaboration_complexity',
-      'feedback_count',
+      'lines_per_commit',
+      'churn_rate',
+      'modification_ratio',
+      'churn_per_author',
+      'deletion_rate',
+      'commit_density',
     ];
   }
 }

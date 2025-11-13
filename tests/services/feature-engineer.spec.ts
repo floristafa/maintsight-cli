@@ -1,4 +1,4 @@
-import { FeatureEngineer } from '../../src/services/feature-engineer';
+import { FeatureEngineer } from '@services';
 
 describe('FeatureEngineer', () => {
   let featureEngineer: FeatureEngineer;
@@ -18,6 +18,8 @@ describe('FeatureEngineer', () => {
           unique_authors: 3,
           bug_prs: 2,
           churn: 150,
+          created_at: new Date('2024-01-01'),
+          last_modified: new Date('2024-01-31'),
         },
       ];
 
@@ -26,22 +28,32 @@ describe('FeatureEngineer', () => {
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({
         module: 'src/test.ts',
+        commits: 10,
+        authors: 3,
         lines_added: 100,
-        lines_removed: 50,
+        lines_deleted: 50,
         churn: 150,
-        prs: 10,
-        unique_authors: 3,
-        bug_prs: 2,
-        bug_ratio: 0.2,
-        churn_per_pr: 15,
-        lines_per_pr: 15,
+        bug_commits: 2,
+        refactor_commits: 0,
+        feature_commits: 8,
         lines_per_author: 50,
+        churn_per_commit: 15,
+        bug_ratio: 0.2,
+        days_active: 31,
+        commits_per_day: 10 / 31,
+        degradation_days: 0,
+        net_lines: 50,
+        code_stability: 1 / (1 + 15),
+        is_high_churn_commit: 0,
+        bug_commit_rate: 2 / 31,
+        commits_squared: 100,
         author_concentration: 1 / 3,
-        add_del_ratio: 2,
-        deletion_ratio: 1 / 3,
-        bug_density: 2 / 150,
-        collaboration_complexity: 45,
-        feedback_count: 0,
+        lines_per_commit: 15,
+        churn_rate: 150 / 50,
+        modification_ratio: 0.5,
+        churn_per_author: 50,
+        deletion_rate: 1 / 3,
+        commit_density: 10 / 31,
       });
     });
 
@@ -55,23 +67,28 @@ describe('FeatureEngineer', () => {
           unique_authors: 0,
           bug_prs: 0,
           churn: 0,
+          created_at: new Date('2024-01-01'),
+          last_modified: new Date('2024-01-01'),
         },
       ];
 
       const result = featureEngineer.transform(inputData);
 
       expect(result[0]).toMatchObject({
-        prs: 0,
-        unique_authors: 0,
+        commits: 1, // Minimum 1 to avoid division by zero
+        authors: 1, // Minimum 1 to avoid division by zero
+        lines_added: 0,
+        lines_deleted: 0,
+        churn: 0,
+        bug_commits: 0,
         bug_ratio: 0,
-        churn_per_pr: 0,
-        lines_per_pr: 0,
+        churn_per_commit: 0,
+        lines_per_commit: 0,
         lines_per_author: 0,
         author_concentration: 1,
-        add_del_ratio: 0,
-        deletion_ratio: 0,
-        bug_density: 0,
-        collaboration_complexity: 0,
+        deletion_rate: 0,
+        churn_rate: 0,
+        modification_ratio: 0,
       });
     });
 
@@ -84,6 +101,8 @@ describe('FeatureEngineer', () => {
           prs: 5,
           unique_authors: 2,
           bug_prs: 1,
+          created_at: new Date('2024-01-01'),
+          last_modified: new Date('2024-01-05'),
         },
       ];
 
@@ -102,6 +121,8 @@ describe('FeatureEngineer', () => {
           unique_authors: 3,
           bug_prs: 2,
           churn: 150,
+          created_at: new Date('2024-01-01'),
+          last_modified: new Date('2024-01-10'),
         },
         {
           module: 'src/file2.ts',
@@ -111,6 +132,8 @@ describe('FeatureEngineer', () => {
           unique_authors: 1,
           bug_prs: 4,
           churn: 300,
+          created_at: new Date('2024-01-01'),
+          last_modified: new Date('2024-01-05'),
         },
       ];
 
@@ -128,27 +151,40 @@ describe('FeatureEngineer', () => {
     it('should extract feature vector in correct order', () => {
       const features = {
         module: 'test.ts',
-        lines_added: 1,
-        lines_removed: 2,
-        churn: 3,
-        prs: 4,
-        unique_authors: 5,
-        bug_prs: 6,
-        bug_ratio: 7,
-        churn_per_pr: 8,
-        lines_per_pr: 9,
-        lines_per_author: 10,
-        author_concentration: 11,
-        add_del_ratio: 12,
-        deletion_ratio: 13,
-        bug_density: 14,
-        collaboration_complexity: 15,
-        feedback_count: 16,
+        commits: 1,
+        authors: 2,
+        lines_added: 3,
+        lines_deleted: 4,
+        churn: 5,
+        bug_commits: 6,
+        refactor_commits: 7,
+        feature_commits: 8,
+        lines_per_author: 9,
+        churn_per_commit: 10,
+        bug_ratio: 11,
+        days_active: 12,
+        commits_per_day: 13,
+        degradation_days: 14,
+        net_lines: 15,
+        code_stability: 16,
+        is_high_churn_commit: 17,
+        bug_commit_rate: 18,
+        commits_squared: 19,
+        author_concentration: 20,
+        lines_per_commit: 21,
+        churn_rate: 22,
+        modification_ratio: 23,
+        churn_per_author: 24,
+        deletion_rate: 25,
+        commit_density: 26,
       };
 
       const vector = featureEngineer.extractFeatureVector(features);
 
-      expect(vector).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+      expect(vector).toEqual([
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+        26,
+      ]);
     });
   });
 
@@ -157,22 +193,32 @@ describe('FeatureEngineer', () => {
       const names = featureEngineer.getFeatureNames();
 
       expect(names).toEqual([
+        'commits',
+        'authors',
         'lines_added',
-        'lines_removed',
+        'lines_deleted',
         'churn',
-        'prs',
-        'unique_authors',
-        'bug_prs',
-        'bug_ratio',
-        'churn_per_pr',
-        'lines_per_pr',
+        'bug_commits',
+        'refactor_commits',
+        'feature_commits',
         'lines_per_author',
+        'churn_per_commit',
+        'bug_ratio',
+        'days_active',
+        'commits_per_day',
+        'degradation_days',
+        'net_lines',
+        'code_stability',
+        'is_high_churn_commit',
+        'bug_commit_rate',
+        'commits_squared',
         'author_concentration',
-        'add_del_ratio',
-        'deletion_ratio',
-        'bug_density',
-        'collaboration_complexity',
-        'feedback_count',
+        'lines_per_commit',
+        'churn_rate',
+        'modification_ratio',
+        'churn_per_author',
+        'deletion_rate',
+        'commit_density',
       ]);
     });
   });

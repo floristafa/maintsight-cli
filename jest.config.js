@@ -15,6 +15,16 @@ module.exports = {
     },
   },
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
+  moduleNameMapper: {
+    '^@services/(.*)$': '<rootDir>/src/services/$1',
+    '^@services$': '<rootDir>/src/services',
+    '^@utils/(.*)$': '<rootDir>/src/utils/$1',
+    '^@interfaces$': '<rootDir>/src/interfaces',
+    '^@interfaces/(.*)$': '<rootDir>/src/interfaces/$1',
+    '^@cli/(.*)$': '<rootDir>/cli/$1',
+    '^@models/(.*)$': '<rootDir>/src/models/$1',
+    '^@types/(.*)$': '<rootDir>/src/types/$1',
+  },
   transform: {
     '^.+\\.tsx?$': [
       'ts-jest',

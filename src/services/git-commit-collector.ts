@@ -1,31 +1,8 @@
 import { execSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
+import { CommitData, FileStats } from '@interfaces';
 import { Logger } from '../utils/simple-logger';
-
-interface CommitData {
-  module: string;
-  filename: string;
-  repo_name: string;
-  lines_added: number;
-  lines_removed: number;
-  prs: number;
-  unique_authors: number;
-  bug_prs: number;
-  churn: number;
-  created_at: Date;
-  last_modified: Date;
-}
-
-interface FileStats {
-  lines_added: number;
-  lines_removed: number;
-  commits: number;
-  authors: Set<string>;
-  bug_commits: number;
-  first_commit: Date;
-  last_commit: Date;
-}
 
 export class GitCommitCollector {
   private logger: Logger;

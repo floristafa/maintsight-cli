@@ -162,7 +162,7 @@ ${sortedPredictions
 ## Risk Categories
 
 - **High Risk (0.65-1.00)**: Critical maintenance needed
-- **Medium Risk (0.47-0.65)**: Moderate attention required  
+- **Medium Risk (0.47-0.65)**: Moderate attention required
 - **Low Risk (0.22-0.47)**: Minor maintenance needs
 - **No Risk (0.00-0.22)**: Well-maintained code
 

@@ -1,9 +1,8 @@
-import { XGBoostPredictor } from '../../src/services/xgboost-predictor';
+import { FeatureEngineer, XGBoostPredictor } from '@services';
 import * as fs from 'fs/promises';
-import { FeatureEngineer } from '../../src/services/feature-engineer';
 
 jest.mock('fs/promises');
-jest.mock('../../src/services/feature-engineer');
+jest.mock('@services/feature-engineer');
 
 describe('XGBoostPredictor', () => {
   let predictor: XGBoostPredictor;
@@ -26,12 +25,12 @@ describe('XGBoostPredictor', () => {
         model_type: 'xgboost',
         model_data: {
           learner: {
+            feature_names: ['f1', 'f2', 'f3'],
             gradient_booster: {
               model: { trees: [] },
             },
           },
         },
-        feature_names: ['f1', 'f2', 'f3'],
         feature_count: 3,
         risk_thresholds: {
           no_risk: 0.22,
@@ -70,34 +69,36 @@ describe('XGBoostPredictor', () => {
       model_type: 'xgboost',
       model_data: {
         learner: {
+          learner_model_param: {
+            base_score: '[0.5]',
+          },
+          feature_names: ['lines_added', 'lines_removed'],
           gradient_booster: {
             model: {
               trees: [
                 {
-                  tree: [
-                    {
-                      nodeid: 0,
-                      split: 0,
-                      split_condition: 50,
-                      yes: 1,
-                      no: 2,
-                    },
-                    {
-                      nodeid: 1,
-                      leaf: 0.1,
-                    },
-                    {
-                      nodeid: 2,
-                      leaf: -0.1,
-                    },
-                  ],
+                  base_weights: [0.0, 0.1, -0.1],
+                  categories: [],
+                  categories_nodes: [],
+                  categories_segments: [],
+                  categories_sizes: [],
+                  default_left: [0, 0, 0],
+                  id: 0,
+                  left_children: [1, -1, -1],
+                  loss_changes: [0, 0, 0],
+                  parents: [2147483647, 0, 0],
+                  right_children: [2, -1, -1],
+                  split_conditions: [50, 0, 0],
+                  split_indices: [0, 0, 0],
+                  split_type: [0, 0, 0],
+                  sum_hessian: [0, 0, 0],
+                  tree_param: {},
                 },
               ],
             },
           },
         },
       },
-      feature_names: ['lines_added', 'lines_removed'],
       feature_count: 2,
       risk_thresholds: {
         no_risk: 0.22,
@@ -121,11 +122,16 @@ describe('XGBoostPredictor', () => {
       const commitData = [
         {
           module: 'test.ts',
+          filename: 'test.ts',
+          repo_name: 'test-repo',
           lines_added: 100,
           lines_removed: 50,
           prs: 10,
           unique_authors: 3,
           bug_prs: 2,
+          churn: 150,
+          created_at: new Date('2024-01-01'),
+          last_modified: new Date('2024-01-31'),
         },
       ];
 
@@ -133,27 +139,37 @@ describe('XGBoostPredictor', () => {
       const mockFeatures = [
         {
           module: 'test.ts',
+          commits: 10,
+          authors: 3,
           lines_added: 100,
-          lines_removed: 50,
-          prs: 10,
-          unique_authors: 3,
-          bug_prs: 2,
+          lines_deleted: 50,
           churn: 150,
-          bug_ratio: 0.2,
-          churn_per_pr: 15,
-          lines_per_pr: 15,
+          bug_commits: 2,
+          refactor_commits: 0,
+          feature_commits: 8,
           lines_per_author: 50,
+          churn_per_commit: 15,
+          bug_ratio: 0.2,
+          days_active: 30,
+          commits_per_day: 0.333,
+          degradation_days: 0,
+          net_lines: 50,
+          code_stability: 0.0625,
+          is_high_churn_commit: 0,
+          bug_commit_rate: 0.067,
+          commits_squared: 100,
           author_concentration: 0.333,
-          add_del_ratio: 2,
-          deletion_ratio: 0.333,
-          bug_density: 0.013,
-          collaboration_complexity: 0.3,
-          feedback_count: 0,
+          lines_per_commit: 15,
+          churn_rate: 3,
+          modification_ratio: 0.5,
+          churn_per_author: 50,
+          deletion_rate: 0.333,
+          commit_density: 0.333,
         },
       ];
 
       mockFeatureEngineer.prototype.transform.mockReturnValue(mockFeatures);
-      mockFeatureEngineer.prototype.extractFeatureVector.mockReturnValue([100, 50, 150]);
+      mockFeatureEngineer.prototype.extractFeatureVector.mockReturnValue([100, 50]);
 
       const predictions = predictor.predict(commitData);
 
@@ -186,10 +202,58 @@ describe('XGBoostPredictor', () => {
         .mockReturnValueOnce(0.8); // high-risk
 
       const commitData = [
-        { module: 'file1.ts' },
-        { module: 'file2.ts' },
-        { module: 'file3.ts' },
-        { module: 'file4.ts' },
+        {
+          module: 'file1.ts',
+          filename: 'file1.ts',
+          repo_name: 'test-repo',
+          lines_added: 10,
+          lines_removed: 5,
+          prs: 1,
+          unique_authors: 1,
+          bug_prs: 0,
+          churn: 15,
+          created_at: new Date(),
+          last_modified: new Date(),
+        },
+        {
+          module: 'file2.ts',
+          filename: 'file2.ts',
+          repo_name: 'test-repo',
+          lines_added: 20,
+          lines_removed: 10,
+          prs: 2,
+          unique_authors: 1,
+          bug_prs: 1,
+          churn: 30,
+          created_at: new Date(),
+          last_modified: new Date(),
+        },
+        {
+          module: 'file3.ts',
+          filename: 'file3.ts',
+          repo_name: 'test-repo',
+          lines_added: 30,
+          lines_removed: 15,
+          prs: 3,
+          unique_authors: 2,
+          bug_prs: 1,
+          churn: 45,
+          created_at: new Date(),
+          last_modified: new Date(),
+        },
+        {
+          module: 'file4.ts',
+          filename: 'file4.ts',
+          repo_name: 'test-repo',
+          lines_added: 40,
+          lines_removed: 20,
+          prs: 4,
+          unique_authors: 2,
+          bug_prs: 2,
+          churn: 60,
+          created_at: new Date(),
+          last_modified: new Date(),
+        },
       ];
 
       const predictions = predictor.predict(commitData);
@@ -220,10 +284,58 @@ describe('XGBoostPredictor', () => {
         .mockReturnValueOnce(0.8);
 
       const commitData = [
-        { module: 'file1.ts' },
-        { module: 'file2.ts' },
-        { module: 'file3.ts' },
-        { module: 'file4.ts' },
+        {
+          module: 'file1.ts',
+          filename: 'file1.ts',
+          repo_name: 'test-repo',
+          lines_added: 10,
+          lines_removed: 5,
+          prs: 1,
+          unique_authors: 1,
+          bug_prs: 0,
+          churn: 15,
+          created_at: new Date(),
+          last_modified: new Date(),
+        },
+        {
+          module: 'file2.ts',
+          filename: 'file2.ts',
+          repo_name: 'test-repo',
+          lines_added: 20,
+          lines_removed: 10,
+          prs: 2,
+          unique_authors: 1,
+          bug_prs: 0,
+          churn: 30,
+          created_at: new Date(),
+          last_modified: new Date(),
+        },
+        {
+          module: 'file3.ts',
+          filename: 'file3.ts',
+          repo_name: 'test-repo',
+          lines_added: 30,
+          lines_removed: 15,
+          prs: 3,
+          unique_authors: 2,
+          bug_prs: 1,
+          churn: 45,
+          created_at: new Date(),
+          last_modified: new Date(),
+        },
+        {
+          module: 'file4.ts',
+          filename: 'file4.ts',
+          repo_name: 'test-repo',
+          lines_added: 40,
+          lines_removed: 20,
+          prs: 4,
+          unique_authors: 2,
+          bug_prs: 1,
+          churn: 60,
+          created_at: new Date(),
+          last_modified: new Date(),
+        },
       ];
 
       // Spy on console.log to check statistics output
@@ -242,8 +354,16 @@ describe('XGBoostPredictor', () => {
   describe('getRiskCategory', () => {
     const mockModel = {
       model_type: 'xgboost',
-      model_data: { learner: { gradient_booster: { model: { trees: [] } } } },
-      feature_names: [],
+      model_data: {
+        learner: {
+          feature_names: [],
+          gradient_booster: {
+            model: {
+              trees: [],
+            },
+          },
+        },
+      },
       feature_count: 0,
       risk_thresholds: {
         no_risk: 0.22,
@@ -280,39 +400,41 @@ describe('XGBoostPredictor', () => {
   });
 
   describe('tree prediction', () => {
-    it('should handle array-based tree structure', async () => {
+    it('should handle new array-based tree structure', async () => {
       const modelWithArrayTree = {
         model_type: 'xgboost',
         model_data: {
           learner: {
+            learner_model_param: {
+              base_score: '[0.0]',
+            },
+            feature_names: ['lines_added'],
             gradient_booster: {
               model: {
                 trees: [
                   {
-                    tree: [
-                      {
-                        nodeid: 0,
-                        split: 0,
-                        split_condition: 50,
-                        yes: 1,
-                        no: 2,
-                      },
-                      {
-                        nodeid: 1,
-                        leaf: 0.1,
-                      },
-                      {
-                        nodeid: 2,
-                        leaf: -0.1,
-                      },
-                    ],
+                    base_weights: [0.0, 0.1, -0.1],
+                    categories: [],
+                    categories_nodes: [],
+                    categories_segments: [],
+                    categories_sizes: [],
+                    default_left: [0, 0, 0],
+                    id: 0,
+                    left_children: [1, -1, -1],
+                    loss_changes: [0, 0, 0],
+                    parents: [2147483647, 0, 0],
+                    right_children: [2, -1, -1],
+                    split_conditions: [50, 0, 0],
+                    split_indices: [0, 0, 0],
+                    split_type: [0, 0, 0],
+                    sum_hessian: [0, 0, 0],
+                    tree_param: {},
                   },
                 ],
               },
             },
           },
         },
-        feature_names: ['lines_added'],
         feature_count: 1,
         risk_thresholds: {
           no_risk: 0.22,

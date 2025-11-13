@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export class Logger {
   private name: string;

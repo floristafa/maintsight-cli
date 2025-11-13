@@ -1,4 +1,4 @@
-import { GitCommitCollector } from '../../src/services/git-commit-collector';
+import { GitCommitCollector } from '@services';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 
