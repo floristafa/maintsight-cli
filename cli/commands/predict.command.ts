@@ -1,18 +1,18 @@
 import { Command } from 'commander';
 import * as path from 'path';
-import * as os from 'os';
 import chalk from 'chalk';
 import ora from 'ora';
 import { GitCommitCollector } from '../../src/services/git-commit-collector';
 import { XGBoostPredictor } from '../../src/services/xgboost-predictor';
 import { getPackageRoot } from '../utils/find-package-json';
+import { generateHTMLReport } from '../utils/html-generator';
 
 interface PredictOptions {
   branch?: string;
   maxCommits?: number;
   windowSizeDays?: number;
   output?: string;
-  format?: 'json' | 'csv' | 'markdown' | 'html';
+  format?: 'json' | 'csv' | 'markdown';
   threshold?: number;
   verbose?: boolean;
 }
@@ -27,7 +27,7 @@ export function createPredictCommand(): Command {
     .option('-n, --max-commits <number>', 'Maximum number of commits to analyze', '10000')
     .option('-w, --window-size-days <number>', 'Time window in days for commit analysis', '150')
     .option('-o, --output <path>', 'Output file path (default: stdout)')
-    .option('-f, --format <format>', 'Output format: json, csv, markdown, html', 'json')
+    .option('-f, --format <format>', 'Output format: json, csv, markdown', 'json')
     .option('-t, --threshold <number>', 'Only show files above degradation threshold', '0')
     .option('-v, --verbose', 'Verbose output', false)
     .action(async (repoPath: string, options: PredictOptions) => {
@@ -37,11 +37,8 @@ export function createPredictCommand(): Command {
         // Resolve paths
         const resolvedPath = path.resolve(repoPath);
         // Find model path relative to package root
-        console.error('DEBUG: __dirname =', __dirname);
         const packageRoot = getPackageRoot(__dirname);
-        console.error('DEBUG: packageRoot =', packageRoot);
         const modelPath = path.join(packageRoot, 'models', 'model.json');
-        console.error('DEBUG: modelPath =', modelPath);
 
         // Initialize services
         spinner.text = 'Loading XGBoost model...';
@@ -76,18 +73,25 @@ export function createPredictCommand(): Command {
 
         spinner.succeed(`Predictions complete: ${results.length} files analyzed`);
 
-        // Save results to .maintsight folder
-        await saveResultsToMaintSight(results, resolvedPath);
+        // Generate HTML report in repo's .maintsight folder
+        const htmlPath = await generateHTMLReport(results, commitData, resolvedPath);
 
-        // Format and output results
-        const output = formatResults(results, options.format || 'json', resolvedPath);
-
+        // Format and output results if requested
         if (options.output) {
+          const output = formatResults(results, options.format || 'json', resolvedPath);
           const fs = await import('fs/promises');
           await fs.writeFile(options.output, output, 'utf-8');
           console.log(chalk.green(`✓ Results saved to: ${options.output}`));
         } else {
+          // Show JSON output by default
+          const output = formatResults(results, options.format || 'json', resolvedPath);
           console.log(output);
+        }
+
+        // Always show the HTML report link
+        if (htmlPath) {
+          console.log(chalk.green(`\n🌐 Interactive HTML report: file://${htmlPath}`));
+          console.log(chalk.dim(`   Click the link above to open in your browser`));
         }
 
         // Show summary
@@ -158,7 +162,7 @@ function formatAsMarkdown(predictions: any[], repoPath: string): string {
 
 | Risk Level | Count | Percentage |
 |------------|-------|------------|
-| Severely Degraded | ${riskDist['severely-degraded'] || 0} | ${(((riskDist['severely-degraded'] || 0) / predictions.length) * 100).toFixed(1)}% |
+| Severely Degraded | ${riskDist['severely_degraded'] || 0} | ${(((riskDist['severely_degraded'] || 0) / predictions.length) * 100).toFixed(1)}% |
 | Degraded | ${riskDist['degraded'] || 0} | ${(((riskDist['degraded'] || 0) / predictions.length) * 100).toFixed(1)}% |
 | Stable | ${riskDist['stable'] || 0} | ${(((riskDist['stable'] || 0) / predictions.length) * 100).toFixed(1)}% |
 | Improved | ${riskDist['improved'] || 0} | ${(((riskDist['improved'] || 0) / predictions.length) * 100).toFixed(1)}% |
@@ -197,67 +201,8 @@ function showSummary(predictions: any[]): void {
 
   console.log(chalk.cyan('\nSummary:'));
   console.log(`Total files: ${predictions.length}`);
-  console.log(`Severely degraded: ${chalk.red(riskDist['severely-degraded'] || 0)}`);
+  console.log(`Severely degraded: ${chalk.red(riskDist['severely_degraded'] || 0)}`);
   console.log(`Degraded: ${chalk.yellow(riskDist['degraded'] || 0)}`);
   console.log(`Stable: ${chalk.blue(riskDist['stable'] || 0)}`);
   console.log(`Improved: ${chalk.green(riskDist['improved'] || 0)}`);
-}
-
-async function saveResultsToMaintSight(predictions: any[], repoPath: string): Promise<void> {
-  try {
-    const fs = await import('fs/promises');
-
-    // Get repository name
-    const repoName = path.basename(repoPath);
-
-    // Create timestamp for filename
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-
-    // Determine .maintsight directory path
-    const dataDir = process.env.MAINTSIGHT_DATA_DIR || path.join(os.homedir(), '.maintsight');
-    const repoDir = path.join(dataDir, repoName);
-
-    // Create directories if they don't exist
-    await fs.mkdir(repoDir, { recursive: true });
-
-    // Create CSV filename
-    const csvFilename = `${timestamp}.csv`;
-    const csvPath = path.join(repoDir, csvFilename);
-
-    // Add timestamp to each prediction
-    const predictionsWithTimestamp = predictions.map((p) => ({
-      ...p,
-      timestamp: new Date().toISOString(),
-    }));
-
-    // Format as CSV
-    const csvContent = formatAsCSVWithTimestamp(predictionsWithTimestamp);
-
-    // Save the file
-    await fs.writeFile(csvPath, csvContent, 'utf-8');
-
-    console.log(chalk.dim(`Results saved to: ${csvPath}`));
-  } catch (error) {
-    // Log error but don't fail the command
-    console.error(
-      chalk.yellow(
-        `Warning: Could not save results to .maintsight: ${error instanceof Error ? error.message : String(error)}`,
-      ),
-    );
-  }
-}
-
-function formatAsCSVWithTimestamp(predictions: any[]): string {
-  const headers = ['module', 'degradation_score', 'raw_prediction', 'risk_category', 'timestamp'];
-  const rows = predictions.map((p) => [
-    p.module,
-    (p.degradation_score || p.risk_score).toFixed(6),
-    (p.raw_prediction || p.risk_score).toFixed(6),
-    p.risk_category,
-    p.timestamp,
-  ]);
-
-  return [headers.join(','), ...rows.map((row) => row.map((cell) => `"${cell}"`).join(','))].join(
-    '\n',
-  );
 }

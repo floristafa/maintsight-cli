@@ -1,0 +1,768 @@
+import * as path from 'path';
+import * as fs from 'fs/promises';
+import chalk from 'chalk';
+
+interface FileTreeNode {
+  name: string;
+  type: 'file' | 'folder';
+  children?: FileTreeNode[];
+  prediction?: any;
+  path?: string;
+}
+
+interface CommitStats {
+  totalCommits: number;
+  totalAuthors: number;
+  totalBugFixes: number;
+  avgCommitsPerFile: number;
+  avgAuthorsPerFile: number;
+}
+
+export async function generateHTMLReport(
+  predictions: any[],
+  commitData: any[],
+  repoPath: string,
+): Promise<string | null> {
+  try {
+    // Get repository name
+    const repoName = path.basename(repoPath);
+
+    // Create timestamp for filename
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+
+    // Create .maintsight directory inside the repo
+    const maintSightDir = path.join(repoPath, '.maintsight');
+    await fs.mkdir(maintSightDir, { recursive: true });
+
+    // Create HTML filename with repo name and date
+    const htmlFilename = `${repoName}-${timestamp}.html`;
+    const htmlPath = path.join(maintSightDir, htmlFilename);
+
+    // Generate HTML content
+    const htmlContent = formatAsHTML(predictions, commitData, repoPath);
+
+    // Save HTML file
+    await fs.writeFile(htmlPath, htmlContent, 'utf-8');
+
+    console.log(chalk.dim(`HTML report saved to: ${htmlPath}`));
+
+    return htmlPath;
+  } catch (error) {
+    console.error(
+      chalk.yellow(
+        `Warning: Could not save HTML report: ${error instanceof Error ? error.message : String(error)}`,
+      ),
+    );
+    return null;
+  }
+}
+
+function buildFileTree(predictions: any[]): FileTreeNode {
+  const root: FileTreeNode = { name: 'root', type: 'folder', children: [] };
+
+  predictions.forEach((prediction: any) => {
+    const pathParts = prediction.module.split('/');
+    let currentNode = root;
+
+    pathParts.forEach((part: string, index: number) => {
+      const isFile = index === pathParts.length - 1;
+      const existingChild = currentNode.children?.find(
+        (child: FileTreeNode) => child.name === part,
+      );
+
+      if (existingChild) {
+        currentNode = existingChild;
+      } else {
+        const newNode: FileTreeNode = {
+          name: part,
+          type: isFile ? 'file' : 'folder',
+          path: pathParts.slice(0, index + 1).join('/'),
+          children: isFile ? undefined : [],
+          prediction: isFile ? prediction : undefined,
+        };
+
+        currentNode.children = currentNode.children || [];
+        currentNode.children.push(newNode);
+        currentNode = newNode;
+      }
+    });
+  });
+
+  return root;
+}
+
+function generateTreeHTML(node: FileTreeNode, depth: number = 0): string {
+  if (!node.children || node.children.length === 0) {
+    // This is a file
+    if (node.prediction) {
+      const score = node.prediction.degradation_score || node.prediction.risk_score;
+      const category = node.prediction.risk_category;
+      const categoryClass = category.replace('_', '-');
+
+      return `
+        <div class="tree-file ${categoryClass}">
+          <div class="file-name">${node.name}</div>
+          <div class="file-score">${score.toFixed(4)}</div>
+          <div class="risk-badge ${categoryClass}">${category.replace('_', ' ')}</div>
+        </div>
+      `;
+    }
+    return '';
+  }
+
+  // This is a folder
+  const sortedChildren = [...node.children].sort((a: FileTreeNode, b: FileTreeNode) => {
+    // Folders first, then files
+    if (a.type !== b.type) {
+      return a.type === 'folder' ? -1 : 1;
+    }
+    // Sort by name
+    return a.name.localeCompare(b.name);
+  });
+
+  if (node.name === 'root') {
+    // Don't render the root node itself
+    return sortedChildren.map((child: FileTreeNode) => generateTreeHTML(child, depth)).join('');
+  }
+
+  const childrenHTML = sortedChildren
+    .map((child: FileTreeNode) => generateTreeHTML(child, depth + 1))
+    .join('');
+
+  return `
+    <div class="tree-node">
+      <div class="tree-folder">${node.name}</div>
+      <div class="collapsible">
+        ${childrenHTML}
+      </div>
+    </div>
+  `;
+}
+
+function calculateCommitStats(commitData: any[]): CommitStats {
+  if (commitData.length === 0) {
+    return {
+      totalCommits: 0,
+      totalAuthors: 0,
+      totalBugFixes: 0,
+      avgCommitsPerFile: 0,
+      avgAuthorsPerFile: 0,
+    };
+  }
+
+  const totalCommits = commitData.reduce((sum, d) => sum + (d.commits || 0), 0);
+  const totalBugFixes = commitData.reduce((sum, d) => sum + (d.bug_commits || 0), 0);
+  const totalAuthors = commitData.reduce((sum, d) => sum + (d.authors || 0), 0);
+
+  return {
+    totalCommits,
+    totalAuthors: Math.max(totalAuthors, new Set(commitData.map((d) => d.authors)).size),
+    totalBugFixes,
+    avgCommitsPerFile: totalCommits / commitData.length,
+    avgAuthorsPerFile: totalAuthors / commitData.length,
+  };
+}
+
+function formatAsHTML(predictions: any[], commitData: any[], repoPath: string): string {
+  const repoName = path.basename(repoPath);
+  const timestamp = new Date().toISOString();
+
+  // Calculate statistics
+  const totalFiles = predictions.length;
+  const meanScore =
+    predictions.reduce((sum, p) => sum + (p.degradation_score || p.risk_score), 0) / totalFiles;
+  const stdDev = Math.sqrt(
+    predictions.reduce(
+      (sum, p) => sum + Math.pow((p.degradation_score || p.risk_score) - meanScore, 2),
+      0,
+    ) / totalFiles,
+  );
+
+  const riskDistribution = predictions.reduce(
+    (acc, p) => {
+      const category = p.risk_category;
+      acc[category] = (acc[category] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+
+  const improved = riskDistribution['improved'] || 0;
+  const stable = riskDistribution['stable'] || 0;
+  const degraded = riskDistribution['degraded'] || 0;
+  const severelyDegraded = riskDistribution['severely_degraded'] || 0;
+
+  // Calculate commit statistics
+  const commitStats = calculateCommitStats(commitData);
+
+  // Sort predictions by risk score (highest first)
+  const sortedPredictions = [...predictions].sort(
+    (a, b) => (b.degradation_score || b.risk_score) - (a.degradation_score || a.risk_score),
+  );
+
+  // Build file tree structure
+  const fileTree = buildFileTree(sortedPredictions);
+
+  // Calculate file type statistics
+  const fileTypes = commitData.reduce(
+    (acc, d) => {
+      const ext = path.extname(d.module).toLowerCase() || '.no-ext';
+      acc[ext] = (acc[ext] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+
+  const topFileTypes = Object.entries(fileTypes)
+    .sort(([, a], [, b]) => (b as number) - (a as number))
+    .slice(0, 8);
+
+  // Calculate risk by file type
+  const riskByType = predictions.reduce(
+    (acc, p) => {
+      const ext = path.extname(p.module).toLowerCase() || '.no-ext';
+      if (!acc[ext]) acc[ext] = { sum: 0, count: 0 };
+      acc[ext].sum += p.degradation_score || p.risk_score;
+      acc[ext].count += 1;
+      return acc;
+    },
+    {} as Record<string, { sum: number; count: number }>,
+  );
+
+  const topRiskByType = Object.entries(riskByType)
+    .map(([ext, data]) => ({
+      ext,
+      avg: (data as any).sum / (data as any).count,
+      count: (data as any).count,
+    }))
+    .sort((a, b) => b.avg - a.avg)
+    .slice(0, 8);
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maintenance Risk Analysis - ${repoName}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f8f9fa;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .header .meta {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+        
+        .stat-percentage {
+            font-size: 0.8em;
+            margin-top: 5px;
+        }
+        
+        .improved { color: #27ae60; }
+        .stable { color: #3498db; }
+        .degraded { color: #f39c12; }
+        .severely-degraded { color: #e74c3c; }
+        
+        .section {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        
+        .section h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .section h2.overview::before { content: '📊'; margin-right: 10px; }
+        .section h2.commit-stats::before { content: '💻'; margin-right: 10px; }
+        .section h2.file-types::before { content: '📁'; margin-right: 10px; }
+        .section h2.top-files::before { content: '⚠️'; margin-right: 10px; }
+        .section h2.file-tree::before { content: '🌳'; margin-right: 10px; }
+        
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .stat-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #ecf0f1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .stat-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .file-type {
+            font-family: 'Monaco', 'Menlo', monospace;
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        
+        .risk-score {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.85em;
+        }
+        
+        .risk-high { background: #fdedec; color: #e74c3c; }
+        .risk-medium { background: #fef9e7; color: #f39c12; }
+        .risk-low { background: #ebf3fd; color: #3498db; }
+        .risk-good { background: #eafaf1; color: #27ae60; }
+        
+        .tree-node {
+            margin-left: 20px;
+            border-left: 2px solid #ecf0f1;
+            padding-left: 15px;
+            margin-bottom: 10px;
+        }
+        
+        .tree-folder {
+            font-weight: bold;
+            color: #34495e;
+            margin-bottom: 10px;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .tree-folder:hover {
+            color: #2c3e50;
+        }
+        
+        .tree-folder::before {
+            content: '📁 ';
+            margin-right: 5px;
+        }
+        
+        .tree-file {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 6px;
+            background: #f8f9fa;
+            border-left: 4px solid #ddd;
+        }
+        
+        .tree-file.improved {
+            border-left-color: #27ae60;
+            background: #eafaf1;
+        }
+        
+        .tree-file.stable {
+            border-left-color: #3498db;
+            background: #ebf3fd;
+        }
+        
+        .tree-file.degraded {
+            border-left-color: #f39c12;
+            background: #fef9e7;
+        }
+        
+        .tree-file.severely-degraded {
+            border-left-color: #e74c3c;
+            background: #fdedec;
+        }
+        
+        .file-name {
+            flex: 1;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.9em;
+        }
+        
+        .file-name::before {
+            content: '📄 ';
+            margin-right: 5px;
+        }
+        
+        .file-score {
+            font-weight: bold;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.85em;
+        }
+        
+        .risk-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-left: 10px;
+        }
+        
+        .risk-badge.improved {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .risk-badge.stable {
+            background: #3498db;
+            color: white;
+        }
+        
+        .risk-badge.degraded {
+            background: #f39c12;
+            color: white;
+        }
+        
+        .risk-badge.severely-degraded {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .collapsible {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        
+        .collapsible.expanded {
+            max-height: none;
+        }
+        
+        .footer {
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 0.9em;
+            margin-top: 30px;
+            padding: 20px;
+        }
+        
+        .top-files-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .top-file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 6px;
+            background: #f8f9fa;
+            border-left: 4px solid #ddd;
+        }
+        
+        .top-file-item.severely-degraded {
+            border-left-color: #e74c3c;
+            background: #fdedec;
+        }
+        
+        .top-file-item.degraded {
+            border-left-color: #f39c12;
+            background: #fef9e7;
+        }
+        
+        .top-file-item.stable {
+            border-left-color: #3498db;
+            background: #ebf3fd;
+        }
+        
+        .top-file-item.improved {
+            border-left-color: #27ae60;
+            background: #eafaf1;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .two-column {
+                grid-template-columns: 1fr;
+            }
+            
+            .tree-node {
+                margin-left: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Maintenance Risk Analysis</h1>
+            <div class="meta">
+                <strong>Repository:</strong> ${repoName}<br>
+                <strong>Generated:</strong> ${new Date(timestamp).toLocaleString()}<br>
+                <strong>Analysis Date:</strong> ${new Date().toLocaleDateString()}
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">${totalFiles}</div>
+                <div class="stat-label">Total Files</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number improved">${improved}</div>
+                <div class="stat-label">Improved</div>
+                <div class="stat-percentage improved">${((improved / totalFiles) * 100).toFixed(1)}%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number stable">${stable}</div>
+                <div class="stat-label">Stable</div>
+                <div class="stat-percentage stable">${((stable / totalFiles) * 100).toFixed(1)}%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number degraded">${degraded}</div>
+                <div class="stat-label">Degraded</div>
+                <div class="stat-percentage degraded">${((degraded / totalFiles) * 100).toFixed(1)}%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number severely-degraded">${severelyDegraded}</div>
+                <div class="stat-label">Severely Degraded</div>
+                <div class="stat-percentage severely-degraded">${((severelyDegraded / totalFiles) * 100).toFixed(1)}%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">${meanScore.toFixed(4)}</div>
+                <div class="stat-label">Mean Risk Score</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">${stdDev.toFixed(4)}</div>
+                <div class="stat-label">Standard Deviation</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">${commitStats.totalCommits}</div>
+                <div class="stat-label">Total Commits</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="overview">Analysis Overview</h2>
+            <p><strong>Repository Analysis:</strong> This comprehensive report analyzes ${totalFiles} files across ${commitStats.totalCommits} commits in the ${repoName} repository to assess maintenance risk and code quality trends.</p>
+            <br>
+            <p><strong>Risk Categories:</strong></p>
+            <ul style="margin-left: 20px; margin-top: 10px;">
+                <li><strong class="improved">Improved (< 0.0):</strong> Code quality is improving - excellent maintenance practices</li>
+                <li><strong class="stable">Stable (0.0-0.1):</strong> Code quality is stable - minimal degradation detected</li>
+                <li><strong class="degraded">Degraded (0.1-0.2):</strong> Moderate degradation - consider refactoring</li>
+                <li><strong class="severely-degraded">Severely Degraded (> 0.2):</strong> Critical attention needed - rapid quality decline</li>
+            </ul>
+        </div>
+
+        <div class="two-column">
+            <div class="section">
+                <h2 class="commit-stats">Commit Statistics</h2>
+                <ul class="stat-list">
+                    <li>
+                        <span>Total Commits</span>
+                        <span><strong>${commitStats.totalCommits}</strong></span>
+                    </li>
+                    <li>
+                        <span>Total Authors</span>
+                        <span><strong>${commitStats.totalAuthors}</strong></span>
+                    </li>
+                    <li>
+                        <span>Bug Fix Commits</span>
+                        <span><strong>${commitStats.totalBugFixes}</strong></span>
+                    </li>
+                    <li>
+                        <span>Avg Commits/File</span>
+                        <span><strong>${commitStats.avgCommitsPerFile.toFixed(1)}</strong></span>
+                    </li>
+                    <li>
+                        <span>Bug Fix Rate</span>
+                        <span><strong>${commitStats.totalCommits > 0 ? ((commitStats.totalBugFixes / commitStats.totalCommits) * 100).toFixed(1) : 0}%</strong></span>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2 class="file-types">File Type Distribution</h2>
+                <ul class="stat-list">
+                    ${topFileTypes
+                      .map(
+                        ([ext, count]) => `
+                    <li>
+                        <span class="file-type">${ext}</span>
+                        <span><strong>${count}</strong> files</span>
+                    </li>
+                    `,
+                      )
+                      .join('')}
+                </ul>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="top-files">Highest Risk Files (Top 15)</h2>
+            <div class="top-files-list">
+                ${sortedPredictions
+                  .slice(0, 15)
+                  .map((p) => {
+                    const score = p.degradation_score || p.risk_score;
+                    const categoryClass = p.risk_category.replace('_', '-');
+                    return `
+                  <div class="top-file-item ${categoryClass}">
+                    <div class="file-name">${p.module}</div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      <div class="file-score">${score.toFixed(4)}</div>
+                      <div class="risk-badge ${categoryClass}">${p.risk_category.replace('_', ' ')}</div>
+                    </div>
+                  </div>
+                  `;
+                  })
+                  .join('')}
+            </div>
+        </div>
+
+        ${
+          topRiskByType.length > 0
+            ? `
+        <div class="section">
+            <h2 class="file-types">Average Risk by File Type</h2>
+            <ul class="stat-list">
+                ${topRiskByType
+                  .map(({ ext, avg, count }) => {
+                    let riskClass = 'risk-good';
+                    if (avg >= 0.2) riskClass = 'risk-high';
+                    else if (avg >= 0.1) riskClass = 'risk-medium';
+                    else if (avg >= 0.0) riskClass = 'risk-low';
+
+                    return `
+                  <li>
+                      <span class="file-type">${ext}</span>
+                      <span style="display: flex; align-items: center; gap: 10px;">
+                          <span class="risk-score ${riskClass}">${avg.toFixed(3)}</span>
+                          <span><strong>${count}</strong> files</span>
+                      </span>
+                  </li>
+                  `;
+                  })
+                  .join('')}
+            </ul>
+        </div>
+        `
+            : ''
+        }
+
+        <div class="section">
+            <h2 class="file-tree">Complete File Analysis Tree</h2>
+            ${generateTreeHTML(fileTree)}
+        </div>
+
+        <div class="footer">
+            Generated by <strong>Maintenance Predictor</strong> using XGBoost Machine Learning<br>
+            Risk scores based on commit patterns, code churn, and development activity analysis<br>
+            <em>Analysis includes both prediction and statistical insights</em>
+        </div>
+    </div>
+
+    <script>
+        // Add interactivity to collapsible folders
+        document.querySelectorAll('.tree-folder').forEach(folder => {
+            folder.addEventListener('click', function() {
+                const content = this.nextElementSibling;
+                if (content && content.classList.contains('collapsible')) {
+                    content.classList.toggle('expanded');
+                }
+            });
+        });
+        
+        // Auto-expand folders with high-risk files
+        document.querySelectorAll('.tree-file.severely-degraded, .tree-file.degraded').forEach(file => {
+            let parent = file.parentElement;
+            while (parent) {
+                if (parent.classList.contains('collapsible')) {
+                    parent.classList.add('expanded');
+                }
+                parent = parent.parentElement;
+            }
+        });
+
+        // Smooth scrolling for any internal links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
+        });
+    </script>
+</body>
+</html>`;
+}

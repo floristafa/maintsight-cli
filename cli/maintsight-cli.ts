@@ -5,7 +5,6 @@ import { findPackageJson } from './utils/find-package-json';
 
 // Import commands
 import { createPredictCommand } from './commands/predict.command';
-import { createStatsCommand } from './commands/stats.command';
 
 // Read version from package.json using robust path resolution
 const packageJson = findPackageJson(__dirname);
@@ -19,7 +18,6 @@ program
 
 // Add commands
 program.addCommand(createPredictCommand());
-program.addCommand(createStatsCommand());
 
 // Default command - show help
 program
