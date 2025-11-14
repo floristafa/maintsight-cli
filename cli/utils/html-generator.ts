@@ -163,7 +163,7 @@ function calculateCommitStats(commitData: any[]): CommitStats {
   };
 }
 
-function formatAsHTML(predictions: any[], commitData: any[], repoPath: string): string {
+export function formatAsHTML(predictions: any[], commitData: any[], repoPath: string): string {
   const repoName = path.basename(repoPath);
   const timestamp = new Date().toISOString();
 
@@ -250,20 +250,20 @@ function formatAsHTML(predictions: any[], commitData: any[], repoPath: string): 
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             line-height: 1.6;
             color: #333;
             background: #f8f9fa;
         }
-        
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
         }
-        
+
         .header {
             background: white;
             padding: 30px;
@@ -271,24 +271,24 @@ function formatAsHTML(predictions: any[], commitData: any[], repoPath: string): 
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             margin-bottom: 30px;
         }
-        
+
         .header h1 {
             color: #2c3e50;
             margin-bottom: 10px;
         }
-        
+
         .header .meta {
             color: #7f8c8d;
             font-size: 0.9em;
         }
-        
+
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
-        
+
         .stat-card {
             background: white;
             padding: 20px;
@@ -296,28 +296,28 @@ function formatAsHTML(predictions: any[], commitData: any[], repoPath: string): 
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             text-align: center;
         }
-        
+
         .stat-number {
             font-size: 2em;
             font-weight: bold;
             margin-bottom: 5px;
         }
-        
+
         .stat-label {
             color: #7f8c8d;
             font-size: 0.9em;
         }
-        
+
         .stat-percentage {
             font-size: 0.8em;
             margin-top: 5px;
         }
-        
+
         .improved { color: #27ae60; }
         .stable { color: #3498db; }
         .degraded { color: #f39c12; }
         .severely-degraded { color: #e74c3c; }
-        
+
         .section {
             background: white;
             padding: 30px;
@@ -325,32 +325,32 @@ function formatAsHTML(predictions: any[], commitData: any[], repoPath: string): 
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             margin-bottom: 30px;
         }
-        
+
         .section h2 {
             color: #2c3e50;
             margin-bottom: 20px;
             display: flex;
             align-items: center;
         }
-        
+
         .section h2.overview::before { content: '📊'; margin-right: 10px; }
         .section h2.commit-stats::before { content: '💻'; margin-right: 10px; }
         .section h2.file-types::before { content: '📁'; margin-right: 10px; }
         .section h2.top-files::before { content: '⚠️'; margin-right: 10px; }
         .section h2.file-tree::before { content: '🌳'; margin-right: 10px; }
-        
+
         .two-column {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 30px;
             margin-bottom: 30px;
         }
-        
+
         .stat-list {
             list-style: none;
             padding: 0;
         }
-        
+
         .stat-list li {
             padding: 8px 0;
             border-bottom: 1px solid #ecf0f1;
@@ -358,11 +358,11 @@ function formatAsHTML(predictions: any[], commitData: any[], repoPath: string): 
             justify-content: space-between;
             align-items: center;
         }
-        
+
         .stat-list li:last-child {
             border-bottom: none;
         }
-        
+
         .file-type {
             font-family: 'Monaco', 'Menlo', monospace;
             background: #f8f9fa;
@@ -370,7 +370,7 @@ function formatAsHTML(predictions: any[], commitData: any[], repoPath: string): 
             border-radius: 4px;
             font-size: 0.9em;
         }
-        
+
         .risk-score {
             font-family: 'Monaco', 'Menlo', monospace;
             font-weight: bold;
@@ -378,19 +378,19 @@ function formatAsHTML(predictions: any[], commitData: any[], repoPath: string): 
             border-radius: 4px;
             font-size: 0.85em;
         }
-        
+
         .risk-high { background: #fdedec; color: #e74c3c; }
         .risk-medium { background: #fef9e7; color: #f39c12; }
         .risk-low { background: #ebf3fd; color: #3498db; }
         .risk-good { background: #eafaf1; color: #27ae60; }
-        
+
         .tree-node {
             margin-left: 20px;
             border-left: 2px solid #ecf0f1;
             padding-left: 15px;
             margin-bottom: 10px;
         }
-        
+
         .tree-folder {
             font-weight: bold;
             color: #34495e;
@@ -398,16 +398,16 @@ function formatAsHTML(predictions: any[], commitData: any[], repoPath: string): 
             cursor: pointer;
             user-select: none;
         }
-        
+
         .tree-folder:hover {
             color: #2c3e50;
         }
-        
+
         .tree-folder::before {
             content: '📁 ';
             margin-right: 5px;
         }
-        
+
         .tree-file {
             display: flex;
             justify-content: space-between;
@@ -418,44 +418,44 @@ function formatAsHTML(predictions: any[], commitData: any[], repoPath: string): 
             background: #f8f9fa;
             border-left: 4px solid #ddd;
         }
-        
+
         .tree-file.improved {
             border-left-color: #27ae60;
             background: #eafaf1;
         }
-        
+
         .tree-file.stable {
             border-left-color: #3498db;
             background: #ebf3fd;
         }
-        
+
         .tree-file.degraded {
             border-left-color: #f39c12;
             background: #fef9e7;
         }
-        
+
         .tree-file.severely-degraded {
             border-left-color: #e74c3c;
             background: #fdedec;
         }
-        
+
         .file-name {
             flex: 1;
             font-family: 'Monaco', 'Menlo', monospace;
             font-size: 0.9em;
         }
-        
+
         .file-name::before {
             content: '📄 ';
             margin-right: 5px;
         }
-        
+
         .file-score {
             font-weight: bold;
             font-family: 'Monaco', 'Menlo', monospace;
             font-size: 0.85em;
         }
-        
+
         .risk-badge {
             padding: 4px 8px;
             border-radius: 12px;
@@ -465,37 +465,37 @@ function formatAsHTML(predictions: any[], commitData: any[], repoPath: string): 
             letter-spacing: 0.5px;
             margin-left: 10px;
         }
-        
+
         .risk-badge.improved {
             background: #27ae60;
             color: white;
         }
-        
+
         .risk-badge.stable {
             background: #3498db;
             color: white;
         }
-        
+
         .risk-badge.degraded {
             background: #f39c12;
             color: white;
         }
-        
+
         .risk-badge.severely-degraded {
             background: #e74c3c;
             color: white;
         }
-        
+
         .collapsible {
             max-height: 0;
             overflow: hidden;
             transition: max-height 0.3s ease-out;
         }
-        
+
         .collapsible.expanded {
             max-height: none;
         }
-        
+
         .footer {
             text-align: center;
             color: #7f8c8d;
@@ -503,12 +503,12 @@ function formatAsHTML(predictions: any[], commitData: any[], repoPath: string): 
             margin-top: 30px;
             padding: 20px;
         }
-        
+
         .top-files-list {
             max-height: 400px;
             overflow-y: auto;
         }
-        
+
         .top-file-item {
             display: flex;
             justify-content: space-between;
@@ -519,40 +519,40 @@ function formatAsHTML(predictions: any[], commitData: any[], repoPath: string): 
             background: #f8f9fa;
             border-left: 4px solid #ddd;
         }
-        
+
         .top-file-item.severely-degraded {
             border-left-color: #e74c3c;
             background: #fdedec;
         }
-        
+
         .top-file-item.degraded {
             border-left-color: #f39c12;
             background: #fef9e7;
         }
-        
+
         .top-file-item.stable {
             border-left-color: #3498db;
             background: #ebf3fd;
         }
-        
+
         .top-file-item.improved {
             border-left-color: #27ae60;
             background: #eafaf1;
         }
-        
+
         @media (max-width: 768px) {
             .container {
                 padding: 10px;
             }
-            
+
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
-            
+
             .two-column {
                 grid-template-columns: 1fr;
             }
-            
+
             .tree-node {
                 margin-left: 10px;
             }
@@ -740,7 +740,7 @@ function formatAsHTML(predictions: any[], commitData: any[], repoPath: string): 
                 }
             });
         });
-        
+
         // Auto-expand folders with high-risk files
         document.querySelectorAll('.tree-file.severely-degraded, .tree-file.degraded').forEach(file => {
             let parent = file.parentElement;

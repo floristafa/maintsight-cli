@@ -5,14 +5,14 @@ import ora from 'ora';
 import { GitCommitCollector } from '../../src/services/git-commit-collector';
 import { XGBoostPredictor } from '../../src/services/xgboost-predictor';
 import { getPackageRoot } from '../utils/find-package-json';
-import { generateHTMLReport } from '../utils/html-generator';
+import { generateHTMLReport, formatAsHTML } from '../utils/html-generator';
 
 interface PredictOptions {
   branch?: string;
   maxCommits?: number;
   windowSizeDays?: number;
   output?: string;
-  format?: 'json' | 'csv' | 'markdown';
+  format?: 'json' | 'csv' | 'markdown' | 'html';
   threshold?: number;
   verbose?: boolean;
 }
@@ -27,7 +27,7 @@ export function createPredictCommand(): Command {
     .option('-n, --max-commits <number>', 'Maximum number of commits to analyze', '10000')
     .option('-w, --window-size-days <number>', 'Time window in days for commit analysis', '150')
     .option('-o, --output <path>', 'Output file path (default: stdout)')
-    .option('-f, --format <format>', 'Output format: json, csv, markdown', 'json')
+    .option('-f, --format <format>', 'Output format: json, csv, markdown, html', 'json')
     .option('-t, --threshold <number>', 'Only show files above degradation threshold', '0')
     .option('-v, --verbose', 'Verbose output', false)
     .action(async (repoPath: string, options: PredictOptions) => {
@@ -78,13 +78,20 @@ export function createPredictCommand(): Command {
 
         // Format and output results if requested
         if (options.output) {
-          const output = formatResults(results, options.format || 'json', resolvedPath);
-          const fs = await import('fs/promises');
-          await fs.writeFile(options.output, output, 'utf-8');
+          if (options.format === 'html') {
+            // For HTML format, use the HTML generator
+            const htmlContent = formatAsHTML(results, commitData, resolvedPath);
+            const fs = await import('fs/promises');
+            await fs.writeFile(options.output, htmlContent, 'utf-8');
+          } else {
+            const output = formatResults(results, options.format || 'json', resolvedPath);
+            const fs = await import('fs/promises');
+            await fs.writeFile(options.output, output, 'utf-8');
+          }
           console.log(chalk.green(`✓ Results saved to: ${options.output}`));
         } else {
           // Show JSON output by default
-          const output = formatResults(results, options.format || 'json', resolvedPath);
+          const output = formatResults(results, options.format || 'html', resolvedPath);
           console.log(output);
         }
 
