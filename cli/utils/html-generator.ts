@@ -92,6 +92,42 @@ function buildFileTree(predictions: any[]): FileTreeNode {
   return root;
 }
 
+// Helper function to calculate average score for a folder
+function calculateFolderStats(node: FileTreeNode): {
+  avgScore: number;
+  fileCount: number;
+  category: string;
+} {
+  let totalScore = 0;
+  let fileCount = 0;
+
+  function traverse(n: FileTreeNode) {
+    if (!n.children || n.children.length === 0) {
+      // This is a file
+      if (n.prediction) {
+        totalScore += n.prediction.degradation_score || n.prediction.risk_score;
+        fileCount++;
+      }
+    } else {
+      // This is a folder, traverse children
+      n.children.forEach((child) => traverse(child));
+    }
+  }
+
+  traverse(node);
+
+  const avgScore = fileCount > 0 ? totalScore / fileCount : 0;
+
+  // Determine category based on average score
+  let category = 'stable';
+  if (avgScore > 0.2) category = 'severely-degraded';
+  else if (avgScore > 0.1) category = 'degraded';
+  else if (avgScore > 0.0) category = 'stable';
+  else category = 'improved';
+
+  return { avgScore, fileCount, category };
+}
+
 function generateTreeHTML(node: FileTreeNode, depth: number = 0): string {
   if (!node.children || node.children.length === 0) {
     // This is a file
@@ -123,16 +159,29 @@ function generateTreeHTML(node: FileTreeNode, depth: number = 0): string {
 
   if (node.name === 'root') {
     // Don't render the root node itself
-    return sortedChildren.map((child: FileTreeNode) => generateTreeHTML(child, depth)).join('');
+    return `<div class="file-tree-container">${sortedChildren.map((child: FileTreeNode) => generateTreeHTML(child, depth)).join('')}</div>`;
   }
 
   const childrenHTML = sortedChildren
     .map((child: FileTreeNode) => generateTreeHTML(child, depth + 1))
     .join('');
 
+  // Calculate folder statistics
+  const stats = calculateFolderStats(node);
+  const folderClass = stats.category;
+
   return `
-    <div class="tree-node">
-      <div class="tree-folder">${node.name}</div>
+    <div class="tree-node" data-depth="${depth}">
+      <div class="tree-folder ${folderClass}" onclick="toggleFolder(this)">
+        <span class="folder-toggle">▶</span>
+        <span class="folder-icon">📁</span>
+        <span class="folder-name">${node.name}</span>
+        <span class="folder-stats">
+          <span class="folder-count">${stats.fileCount} files</span>
+          <span class="folder-score">${stats.avgScore.toFixed(3)}</span>
+          <span class="risk-badge ${folderClass}">${stats.category.replace('-', ' ')}</span>
+        </span>
+      </div>
       <div class="collapsible">
         ${childrenHTML}
       </div>
@@ -258,7 +307,7 @@ export function formatAsHTML(predictions: any[], commitData: any[], repoPath: st
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maintenance Risk Analysis - ${repoName}</title>
+    <title>MaintSight - Maintenance Risk Analysis - ${repoName}</title>
     <style>
         * {
             margin: 0;
@@ -281,27 +330,48 @@ export function formatAsHTML(predictions: any[], commitData: any[], repoPath: st
 
         .header {
             background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 40px 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(117, 133, 255, 0.1);
             margin-bottom: 30px;
+            text-align: center;
+            border: 1px solid rgba(117, 133, 255, 0.1);
         }
 
         .header h1 {
-            color: #2c3e50;
-            margin-bottom: 10px;
+            color: #7585FF;
+            margin-bottom: 8px;
+            font-size: 2.2em;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .header p {
+            color: #8B95FF;
+            font-size: 1.1em;
+            margin-bottom: 20px;
+            font-weight: 500;
+            opacity: 0.8;
         }
 
         .header .meta {
-            color: #7f8c8d;
+            color: #8B95FF;
             font-size: 0.9em;
+            opacity: 0.7;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(117, 133, 255, 0.1);
         }
 
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(2, 1fr);
             gap: 20px;
             margin-bottom: 30px;
+            max-width: 1000px;
+            margin-left: auto;
+            margin-right: auto;
         }
 
         .stat-card {
@@ -328,10 +398,10 @@ export function formatAsHTML(predictions: any[], commitData: any[], repoPath: st
             margin-top: 5px;
         }
 
-        .improved { color: #27ae60; }
-        .stable { color: #3498db; }
-        .degraded { color: #f39c12; }
-        .severely-degraded { color: #e74c3c; }
+        .improved { color: #4CAF50; }
+        .stable { color: #7585FF; }
+        .degraded { color: #FF9500; }
+        .severely-degraded { color: #FF5757; }
 
         .section {
             background: white;
@@ -342,7 +412,7 @@ export function formatAsHTML(predictions: any[], commitData: any[], repoPath: st
         }
 
         .section h2 {
-            color: #2c3e50;
+            color: #7585FF;
             margin-bottom: 20px;
             display: flex;
             align-items: center;
@@ -419,7 +489,6 @@ export function formatAsHTML(predictions: any[], commitData: any[], repoPath: st
         }
 
         .tree-folder::before {
-            content: '📁 ';
             margin-right: 5px;
         }
 
@@ -435,23 +504,23 @@ export function formatAsHTML(predictions: any[], commitData: any[], repoPath: st
         }
 
         .tree-file.improved {
-            border-left-color: #27ae60;
-            background: #eafaf1;
+            border-left-color: #4CAF50;
+            background: #E8F5E8;
         }
 
         .tree-file.stable {
-            border-left-color: #3498db;
-            background: #ebf3fd;
+            border-left-color: #7585FF;
+            background: #F0F2FF;
         }
 
         .tree-file.degraded {
-            border-left-color: #f39c12;
-            background: #fef9e7;
+            border-left-color: #FF9500;
+            background: #FFF5E6;
         }
 
         .tree-file.severely-degraded {
-            border-left-color: #e74c3c;
-            background: #fdedec;
+            border-left-color: #FF5757;
+            background: #FFE8E8;
         }
 
         .file-name {
@@ -482,33 +551,125 @@ export function formatAsHTML(predictions: any[], commitData: any[], repoPath: st
         }
 
         .risk-badge.improved {
-            background: #27ae60;
+            background: #4CAF50;
             color: white;
         }
 
         .risk-badge.stable {
-            background: #3498db;
+            background: #7585FF;
             color: white;
         }
 
         .risk-badge.degraded {
-            background: #f39c12;
+            background: #FF9500;
             color: white;
         }
 
         .risk-badge.severely-degraded {
-            background: #e74c3c;
+            background: #FF5757;
             color: white;
+        }
+
+        .file-tree-container {
+            max-height: 600px;
+            overflow-y: auto;
+            padding: 10px;
+            background: #FAFBFF;
+            border-radius: 8px;
+            border: 1px solid #E1E5FF;
+        }
+
+        .tree-folder {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            margin: 2px 0;
+            border-radius: 6px;
+            background: #F8F9FF;
+            border-left: 4px solid #7585FF;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+
+        .tree-folder:hover {
+            background: #F0F2FF;
+            border-left-color: #6B75FF;
+        }
+
+        .tree-folder.improved {
+            border-left-color: #4CAF50;
+            background: #E8F5E8;
+        }
+
+        .tree-folder.stable {
+            border-left-color: #7585FF;
+            background: #F0F2FF;
+        }
+
+        .tree-folder.degraded {
+            border-left-color: #FF9500;
+            background: #FFF5E6;
+        }
+
+        .tree-folder.severely-degraded {
+            border-left-color: #FF5757;
+            background: #FFE8E8;
+        }
+
+        .folder-toggle {
+            margin-right: 8px;
+            font-size: 12px;
+            transition: transform 0.2s ease;
+            color: #7585FF;
+        }
+
+        .folder-toggle.expanded {
+            transform: rotate(90deg);
+        }
+
+        .folder-icon {
+            margin-right: 8px;
+            font-size: 14px;
+        }
+
+        .folder-name {
+            flex: 1;
+            font-size: 0.9em;
+            color: #2D3748;
+        }
+
+        .folder-stats {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8em;
+        }
+
+        .folder-count {
+            color: #7585FF;
+            background: #F0F2FF;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-weight: 500;
+        }
+
+        .folder-score {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-weight: bold;
+            color: #2D3748;
         }
 
         .collapsible {
             max-height: 0;
             overflow: hidden;
             transition: max-height 0.3s ease-out;
+            margin-left: 20px;
         }
 
         .collapsible.expanded {
-            max-height: none;
+            max-height: 2000px;
         }
 
         .footer {
@@ -536,56 +697,56 @@ export function formatAsHTML(predictions: any[], commitData: any[], repoPath: st
         }
 
         .top-file-item.severely-degraded {
-            border-left-color: #e74c3c;
-            background: #fdedec;
+            border-left-color: #FF5757;
+            background: #FFE8E8;
         }
 
         .top-file-item.degraded {
-            border-left-color: #f39c12;
-            background: #fef9e7;
+            border-left-color: #FF9500;
+            background: #FFF5E6;
         }
 
         .top-file-item.stable {
-            border-left-color: #3498db;
-            background: #ebf3fd;
+            border-left-color: #7585FF;
+            background: #F0F2FF;
         }
 
         .top-file-item.improved {
-            border-left-color: #27ae60;
-            background: #eafaf1;
+            border-left-color: #4CAF50;
+            background: #E8F5E8;
         }
-        
+
         .authors-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 15px;
             margin-top: 20px;
         }
-        
+
         .author-item {
             display: flex;
             align-items: center;
             padding: 10px 15px;
-            background: #f8f9fa;
+            background: #F8F9FF;
             border-radius: 8px;
-            border-left: 4px solid #3498db;
+            border-left: 4px solid #7585FF;
             transition: background 0.2s ease;
         }
-        
+
         .author-item:hover {
             background: #e9ecef;
         }
-        
+
         .author-item.more-authors {
             border-left-color: #95a5a6;
             background: #ecf0f1;
         }
-        
+
         .author-avatar {
             width: 35px;
             height: 35px;
             border-radius: 50%;
-            background: #3498db;
+            background: #7585FF;
             color: white;
             display: flex;
             align-items: center;
@@ -595,16 +756,23 @@ export function formatAsHTML(predictions: any[], commitData: any[], repoPath: st
             margin-right: 12px;
             flex-shrink: 0;
         }
-        
+
         .more-authors .author-avatar {
             background: #95a5a6;
         }
-        
+
         .author-name {
             font-size: 0.9em;
             color: #2c3e50;
             font-weight: 500;
             word-break: break-word;
+        }
+
+        @media (max-width: 1200px) {
+            .stats-grid {
+                grid-template-columns: repeat(4, 1fr);
+                grid-template-rows: repeat(2, 1fr);
+            }
         }
 
         @media (max-width: 768px) {
@@ -614,7 +782,17 @@ export function formatAsHTML(predictions: any[], commitData: any[], repoPath: st
 
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
+                grid-template-rows: repeat(4, 1fr);
             }
+
+            .header {
+                padding: 30px 20px;
+            }
+
+            .header h1 {
+                font-size: 1.8em;
+            }
+        }
 
             .two-column {
                 grid-template-columns: 1fr;
@@ -623,7 +801,7 @@ export function formatAsHTML(predictions: any[], commitData: any[], repoPath: st
             .tree-node {
                 margin-left: 10px;
             }
-            
+
             .authors-grid {
                 grid-template-columns: 1fr;
             }
@@ -633,7 +811,8 @@ export function formatAsHTML(predictions: any[], commitData: any[], repoPath: st
 <body>
     <div class="container">
         <div class="header">
-            <h1>🔍 Maintenance Risk Analysis</h1>
+            <h1>🔍 MaintSight - Maintenance Risk Analysis</h1>
+            <p>Powered by TechDebtGPT</p>
             <div class="meta">
                 <strong>Repository:</strong> ${repoName}<br>
                 <strong>Generated:</strong> ${new Date(timestamp).toLocaleString()}<br>
@@ -642,10 +821,6 @@ export function formatAsHTML(predictions: any[], commitData: any[], repoPath: st
         </div>
 
         <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-number">${totalFiles}</div>
-                <div class="stat-label">Total Files</div>
-            </div>
             <div class="stat-card">
                 <div class="stat-number improved">${improved}</div>
                 <div class="stat-label">Improved</div>
@@ -665,6 +840,10 @@ export function formatAsHTML(predictions: any[], commitData: any[], repoPath: st
                 <div class="stat-number severely-degraded">${severelyDegraded}</div>
                 <div class="stat-label">Severely Degraded</div>
                 <div class="stat-percentage severely-degraded">${((severelyDegraded / totalFiles) * 100).toFixed(1)}%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">${totalFiles}</div>
+                <div class="stat-label">Total Files</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number">${meanScore.toFixed(4)}</div>
@@ -828,32 +1007,28 @@ export function formatAsHTML(predictions: any[], commitData: any[], repoPath: st
         </div>
 
         <div class="footer">
-            Generated by <strong>Maintenance Predictor</strong> using XGBoost Machine Learning<br>
+            Generated by <strong>MaintSightr</strong> using XGBoost Machine Learning<br>
             Risk scores based on commit patterns, code churn, and development activity analysis<br>
             <em>Analysis includes both prediction and statistical insights</em>
         </div>
     </div>
 
     <script>
-        // Add interactivity to collapsible folders
-        document.querySelectorAll('.tree-folder').forEach(folder => {
-            folder.addEventListener('click', function() {
-                const content = this.nextElementSibling;
-                if (content && content.classList.contains('collapsible')) {
-                    content.classList.toggle('expanded');
-                }
-            });
-        });
+        // Toggle folder function
+        function toggleFolder(element) {
+            const content = element.nextElementSibling;
+            const toggle = element.querySelector('.folder-toggle');
 
-        // Auto-expand folders with high-risk files
-        document.querySelectorAll('.tree-file.severely-degraded, .tree-file.degraded').forEach(file => {
-            let parent = file.parentElement;
-            while (parent) {
-                if (parent.classList.contains('collapsible')) {
-                    parent.classList.add('expanded');
-                }
-                parent = parent.parentElement;
+            if (content && content.classList.contains('collapsible')) {
+                content.classList.toggle('expanded');
+                toggle.classList.toggle('expanded');
             }
+        }
+
+        // Initialize - all folders collapsed by default (no auto-expand)
+        document.addEventListener('DOMContentLoaded', function() {
+            // All folders start collapsed by default
+            console.log('File tree initialized - all folders collapsed');
         });
 
         // Smooth scrolling for any internal links
@@ -865,6 +1040,16 @@ export function formatAsHTML(predictions: any[], commitData: any[], repoPath: st
                     target.scrollIntoView({ behavior: 'smooth' });
                 }
             });
+        });
+
+        // Add keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            if (e.target.classList.contains('tree-folder')) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggleFolder(e.target);
+                }
+            }
         });
     </script>
 </body>
