@@ -16,6 +16,7 @@ interface CommitStats {
   totalBugFixes: number;
   avgCommitsPerFile: number;
   avgAuthorsPerFile: number;
+  authorNames: string[];
 }
 
 export async function generateHTMLReport(
@@ -147,19 +148,33 @@ function calculateCommitStats(commitData: any[]): CommitStats {
       totalBugFixes: 0,
       avgCommitsPerFile: 0,
       avgAuthorsPerFile: 0,
+      authorNames: [],
     };
   }
 
   const totalCommits = commitData.reduce((sum, d) => sum + (d.commits || 0), 0);
   const totalBugFixes = commitData.reduce((sum, d) => sum + (d.bug_commits || 0), 0);
-  const totalAuthors = commitData.reduce((sum, d) => sum + (d.authors || 0), 0);
+
+  // Extract unique authors from author_names field in CommitData
+  const uniqueAuthors = new Set<string>();
+  commitData.forEach((d) => {
+    if (d.author_names && Array.isArray(d.author_names)) {
+      d.author_names.forEach((author: string) => uniqueAuthors.add(author));
+    }
+  });
+
+  const authorNames = Array.from(uniqueAuthors);
+  const totalAuthors = authorNames.length;
+  const avgAuthorsPerFile =
+    commitData.reduce((sum, d) => sum + (d.authors || 0), 0) / commitData.length;
 
   return {
     totalCommits,
-    totalAuthors: Math.max(totalAuthors, new Set(commitData.map((d) => d.authors)).size),
+    totalAuthors,
     totalBugFixes,
     avgCommitsPerFile: totalCommits / commitData.length,
-    avgAuthorsPerFile: totalAuthors / commitData.length,
+    avgAuthorsPerFile,
+    authorNames,
   };
 }
 
@@ -539,6 +554,58 @@ export function formatAsHTML(predictions: any[], commitData: any[], repoPath: st
             border-left-color: #27ae60;
             background: #eafaf1;
         }
+        
+        .authors-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .author-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+            transition: background 0.2s ease;
+        }
+        
+        .author-item:hover {
+            background: #e9ecef;
+        }
+        
+        .author-item.more-authors {
+            border-left-color: #95a5a6;
+            background: #ecf0f1;
+        }
+        
+        .author-avatar {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            background: #3498db;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        
+        .more-authors .author-avatar {
+            background: #95a5a6;
+        }
+        
+        .author-name {
+            font-size: 0.9em;
+            color: #2c3e50;
+            font-weight: 500;
+            word-break: break-word;
+        }
 
         @media (max-width: 768px) {
             .container {
@@ -555,6 +622,10 @@ export function formatAsHTML(predictions: any[], commitData: any[], repoPath: st
 
             .tree-node {
                 margin-left: 10px;
+            }
+            
+            .authors-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -665,6 +736,39 @@ export function formatAsHTML(predictions: any[], commitData: any[], repoPath: st
                 </ul>
             </div>
         </div>
+
+        ${
+          commitStats.authorNames.length > 0
+            ? `
+        <div class="section">
+            <h2 class="commit-stats">Repository Contributors (${commitStats.totalAuthors})</h2>
+            <div class="authors-grid">
+                ${commitStats.authorNames
+                  .slice(0, 20)
+                  .map(
+                    (author) => `
+                    <div class="author-item">
+                        <div class="author-avatar">${author.charAt(0).toUpperCase()}</div>
+                        <div class="author-name">${author}</div>
+                    </div>
+                `,
+                  )
+                  .join('')}
+                ${
+                  commitStats.authorNames.length > 20
+                    ? `
+                    <div class="author-item more-authors">
+                        <div class="author-avatar">+</div>
+                        <div class="author-name">${commitStats.authorNames.length - 20} more</div>
+                    </div>
+                `
+                    : ''
+                }
+            </div>
+        </div>
+        `
+            : ''
+        }
 
         <div class="section">
             <h2 class="top-files">Highest Risk Files (Top 15)</h2>

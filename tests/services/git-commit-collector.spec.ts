@@ -83,6 +83,7 @@ def456|user2@example.com|1234567891|Add new feature
         lines_deleted: 5,
         commits: 1,
         authors: 1,
+        author_names: ['user@example.com'],
         bug_commits: 1,
         refactor_commits: 0,
         feature_commits: 0,

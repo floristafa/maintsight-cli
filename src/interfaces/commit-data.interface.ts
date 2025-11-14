@@ -3,6 +3,7 @@ export interface CommitData {
   module: string;
   commits: number;
   authors: number;
+  author_names?: string[];
   lines_added: number;
   lines_deleted: number;
   churn: number;

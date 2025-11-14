@@ -93,6 +93,7 @@ export class GitCommitCollector {
     });
 
     const fileStats: Map<string, FileStats> = new Map();
+    const allRepoAuthors: Set<string> = new Set();
     const lines = logOutput.split('\n');
 
     let currentAuthor = '';
@@ -106,6 +107,7 @@ export class GitCommitCollector {
         // This is a commit header line
         const [, author, timestamp, message] = line.split('|');
         currentAuthor = author;
+        allRepoAuthors.add(author);
         currentDate = new Date(parseInt(timestamp) * 1000);
 
         const messageLower = message.toLowerCase();
@@ -193,6 +195,7 @@ export class GitCommitCollector {
         repo_name: repoName,
         commits: numCommits,
         authors: numAuthors,
+        author_names: Array.from(stats.authors),
         lines_added: stats.lines_added,
         lines_deleted: stats.lines_deleted,
         churn: churn,
