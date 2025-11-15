@@ -95,10 +95,22 @@ export function createPredictCommand(): Command {
         // Always show the HTML report link
         if (htmlPath) {
           const fileUrl = `file://${htmlPath}`;
-          // Create clickable link using OSC 8 hyperlinks
-          const clickableLink = `\u001b]8;;${fileUrl}\u001b\\Click here to open interactive HTML report\u001b]8;;\u001b\\`;
-          console.log(chalk.green(`\n🌐 ${clickableLink}`));
-          console.log(chalk.dim(`   Report saved to: ${path.relative(process.cwd(), htmlPath)}`));
+          const relativePath = path.relative(process.cwd(), htmlPath);
+
+          // Check if we're in VS Code terminal
+          const isVSCode = process.env.TERM_PROGRAM === 'vscode';
+
+          if (isVSCode) {
+            // VS Code: show file path for clicking to open in editor, plus copy-paste URL
+            console.log(chalk.green(`\n🌐 Interactive HTML report generated!`));
+            console.log(chalk.blue(`   File: ${relativePath}`));
+            console.log(chalk.dim(`   Copy & paste in browser: ${fileUrl}`));
+          } else {
+            // Other terminals: try OSC 8 hyperlink
+            const osc8Link = `\x1b]8;;${fileUrl}\x1b\\Click here to open interactive HTML report\x1b]8;;\x1b\\`;
+            console.log(chalk.green(`\n🌐 ${osc8Link}`));
+            console.log(chalk.dim(`   Saved to: ${relativePath}`));
+          }
         }
 
         // Show summary
