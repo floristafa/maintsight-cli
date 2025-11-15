@@ -213,7 +213,6 @@ jkl012|user@example.com|1234567893|Add new feature
         'image.png',
         'style.css',
         'data.xml',
-        'config.yml',
         'document.pdf',
       ];
 

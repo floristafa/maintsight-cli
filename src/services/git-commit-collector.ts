@@ -6,6 +6,47 @@ import { Logger } from '../utils/simple-logger';
 
 export class GitCommitCollector {
   private logger: Logger;
+
+  private updateOrCreateFileStats(
+    filepath: string,
+    fileStats: Map<string, FileStats>,
+    added: number,
+    removed: number,
+    currentAuthor: string,
+    currentDate: Date,
+    isBugFix: boolean,
+    isFeature: boolean,
+    isRefactor: boolean,
+  ): void {
+    const existingStats = fileStats.get(filepath);
+
+    if (existingStats) {
+      // Update existing stats
+      existingStats.lines_added += added;
+      existingStats.lines_deleted += removed;
+      existingStats.commits += 1;
+      existingStats.authors.add(currentAuthor);
+
+      if (isBugFix) existingStats.bug_commits += 1;
+      if (isFeature) existingStats.feature_commits += 1;
+      if (isRefactor) existingStats.refactor_commits += 1;
+
+      if (currentDate < existingStats.first_commit) existingStats.first_commit = currentDate;
+      if (currentDate > existingStats.last_commit) existingStats.last_commit = currentDate;
+    } else {
+      fileStats.set(filepath, {
+        lines_added: added,
+        lines_deleted: removed,
+        commits: 1,
+        authors: new Set([currentAuthor]),
+        bug_commits: isBugFix ? 1 : 0,
+        feature_commits: isFeature ? 1 : 0,
+        refactor_commits: isRefactor ? 1 : 0,
+        first_commit: currentDate,
+        last_commit: currentDate,
+      });
+    }
+  }
   private sourceExtensions = new Set([
     // JavaScript/TypeScript ecosystem
     '.js',
@@ -289,42 +330,17 @@ export class GitCommitCollector {
             continue;
           }
 
-          if (!fileStats.has(filepath)) {
-            fileStats.set(filepath, {
-              lines_added: 0,
-              lines_deleted: 0,
-              commits: 0,
-              authors: new Set(),
-              bug_commits: 0,
-              feature_commits: 0,
-              refactor_commits: 0,
-              first_commit: currentDate,
-              last_commit: currentDate,
-            });
-          }
-
-          const stats = fileStats.get(filepath)!;
-          stats.lines_added += added;
-          stats.lines_deleted += removed;
-          stats.commits += 1;
-          stats.authors.add(currentAuthor);
-
-          if (isBugFix) {
-            stats.bug_commits += 1;
-          }
-          if (isFeature) {
-            stats.feature_commits += 1;
-          }
-          if (isRefactor) {
-            stats.refactor_commits += 1;
-          }
-
-          if (currentDate < stats.first_commit) {
-            stats.first_commit = currentDate;
-          }
-          if (currentDate > stats.last_commit) {
-            stats.last_commit = currentDate;
-          }
+          this.updateOrCreateFileStats(
+            filepath,
+            fileStats,
+            added,
+            removed,
+            currentAuthor,
+            currentDate,
+            isBugFix,
+            isFeature,
+            isRefactor,
+          );
         }
       }
     }
