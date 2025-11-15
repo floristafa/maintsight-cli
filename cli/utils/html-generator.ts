@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import chalk from 'chalk';
+import { CommitData, RiskPrediction } from '@interfaces';
 
 interface FileTreeNode {
   name: string;
@@ -12,7 +13,6 @@ interface FileTreeNode {
 
 interface CommitStats {
   totalCommits: number;
-  totalAuthors: number;
   totalBugFixes: number;
   avgCommitsPerFile: number;
   avgAuthorsPerFile: number;
@@ -20,8 +20,8 @@ interface CommitStats {
 }
 
 export async function generateHTMLReport(
-  predictions: any[],
-  commitData: any[],
+  predictions: RiskPrediction[],
+  commitData: CommitData[],
   repoPath: string,
 ): Promise<string | null> {
   try {
@@ -58,10 +58,10 @@ export async function generateHTMLReport(
   }
 }
 
-function buildFileTree(predictions: any[]): FileTreeNode {
+function buildFileTree(predictions: RiskPrediction[]): FileTreeNode {
   const root: FileTreeNode = { name: 'root', type: 'folder', children: [] };
 
-  predictions.forEach((prediction: any) => {
+  predictions.forEach((prediction) => {
     const pathParts = prediction.module.split('/');
     let currentNode = root;
 
@@ -189,11 +189,10 @@ function generateTreeHTML(node: FileTreeNode, depth: number = 0): string {
   `;
 }
 
-function calculateCommitStats(commitData: any[]): CommitStats {
+function calculateCommitStats(commitData: CommitData[]): CommitStats {
   if (commitData.length === 0) {
     return {
       totalCommits: 0,
-      totalAuthors: 0,
       totalBugFixes: 0,
       avgCommitsPerFile: 0,
       avgAuthorsPerFile: 0,
@@ -213,13 +212,11 @@ function calculateCommitStats(commitData: any[]): CommitStats {
   });
 
   const authorNames = Array.from(uniqueAuthors);
-  const totalAuthors = authorNames.length;
   const avgAuthorsPerFile =
     commitData.reduce((sum, d) => sum + (d.authors || 0), 0) / commitData.length;
 
   return {
     totalCommits,
-    totalAuthors,
     totalBugFixes,
     avgCommitsPerFile: totalCommits / commitData.length,
     avgAuthorsPerFile,
@@ -227,7 +224,11 @@ function calculateCommitStats(commitData: any[]): CommitStats {
   };
 }
 
-export function formatAsHTML(predictions: any[], commitData: any[], repoPath: string): string {
+export function formatAsHTML(
+  predictions: RiskPrediction[],
+  commitData: CommitData[],
+  repoPath: string,
+): string {
   const repoName = path.basename(repoPath);
   const timestamp = new Date().toISOString();
 
@@ -881,7 +882,7 @@ export function formatAsHTML(predictions: any[], commitData: any[], repoPath: st
                     </li>
                     <li>
                         <span>Total Authors</span>
-                        <span><strong>${commitStats.totalAuthors}</strong></span>
+                        <span><strong>${commitStats.authorNames.length}</strong></span>
                     </li>
                     <li>
                         <span>Bug Fix Commits</span>
@@ -919,7 +920,7 @@ export function formatAsHTML(predictions: any[], commitData: any[], repoPath: st
           commitStats.authorNames.length > 0
             ? `
         <div class="section">
-            <h2 class="commit-stats">Repository Contributors (${commitStats.totalAuthors})</h2>
+            <h2 class="commit-stats">Repository Contributors (${commitStats.authorNames.length})</h2>
             <div class="authors-grid">
                 ${commitStats.authorNames
                   .slice(0, 20)
