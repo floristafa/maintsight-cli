@@ -816,7 +816,6 @@ export function formatAsHTML(predictions: any[], commitData: any[], repoPath: st
             <div class="meta">
                 <strong>Repository:</strong> ${repoName}<br>
                 <strong>Generated:</strong> ${new Date(timestamp).toLocaleString()}<br>
-                <strong>Analysis Date:</strong> ${new Date().toLocaleDateString()}
             </div>
         </div>
 

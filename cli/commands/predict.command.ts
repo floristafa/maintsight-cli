@@ -94,8 +94,11 @@ export function createPredictCommand(): Command {
 
         // Always show the HTML report link
         if (htmlPath) {
-          console.log(chalk.green(`\n🌐 Interactive HTML report: file://${htmlPath}`));
-          console.log(chalk.dim(`   Click the link above to open in your browser`));
+          const fileUrl = `file://${htmlPath}`;
+          // Create clickable link using OSC 8 hyperlinks
+          const clickableLink = `\u001b]8;;${fileUrl}\u001b\\Click here to open interactive HTML report\u001b]8;;\u001b\\`;
+          console.log(chalk.green(`\n🌐 ${clickableLink}`));
+          console.log(chalk.dim(`   Report saved to: ${path.relative(process.cwd(), htmlPath)}`));
         }
 
         // Show summary
