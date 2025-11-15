@@ -7,28 +7,184 @@ import { Logger } from '../utils/simple-logger';
 export class GitCommitCollector {
   private logger: Logger;
   private sourceExtensions = new Set([
-    '.py',
+    // JavaScript/TypeScript ecosystem
     '.js',
     '.ts',
-    '.java',
-    '.cpp',
-    '.c',
-    '.h',
-    '.hpp',
-    '.cs',
-    '.rb',
-    '.go',
-    '.rs',
-    '.php',
-    '.swift',
-    '.kt',
-    '.scala',
-    '.r',
-    '.m',
     '.jsx',
     '.tsx',
+    '.mjs',
+    '.cjs',
     '.vue',
+    '.svelte',
+
+    // Python
+    '.py',
+    '.pyx',
+    '.pyi',
+    '.pyw',
+
+    // Java ecosystem
+    '.java',
+    '.kt',
+    '.kts',
+    '.scala',
+    '.groovy',
+    '.gradle',
+
+    // C/C++ family
+    '.c',
+    '.cpp',
+    '.cxx',
+    '.cc',
+    '.c++',
+    '.h',
+    '.hpp',
+    '.hxx',
+    '.hh',
+    '.h++',
+
+    // C# and .NET
+    '.cs',
+    '.vb',
+    '.fs',
+    '.fsx',
+    '.fsi',
+
+    // Mobile development
+    '.swift',
+    '.m',
+    '.mm',
+    '.dart',
+
+    // Web languages
+    '.php',
+    '.rb',
+    '.perl',
+    '.pl',
+    '.pm',
+
+    // Systems programming
+    '.go',
+    '.rs',
+    '.zig',
+    '.nim',
+    '.d',
+
+    // Functional languages
+    '.hs',
+    '.lhs',
+    '.elm',
+    '.ml',
+    '.mli',
+    '.clj',
+    '.cljs',
+    '.cljc',
+
+    // Statistical/Data science
+    '.r',
+    '.R',
+    '.jl',
+    '.ipynb',
+
+    // Database languages
+    '.sql',
+    '.mysql',
+    '.pgsql',
+    '.plsql',
+    '.tsql',
+    '.ddl',
+    '.dml',
+
+    // Database migration files
+    '.migration',
+    '.up.sql',
+    '.down.sql',
+
+    // NoSQL query languages
+    '.cypher',
+    '.gql',
+    '.graphql',
+
+    // Shell scripting
+    '.sh',
+    '.bash',
+    '.zsh',
+    '.fish',
+    '.ps1',
+    '.bat',
+    '.cmd',
+
+    // Configuration as code (contains logic)
+    '.tf',
+    '.hcl',
+    '.yaml',
+    '.yml',
+    '.toml',
+
+    // Blockchain/Web3
     '.sol',
+    '.cairo',
+    '.move',
+    '.vy',
+
+    // Other programming languages
+    '.lua',
+    '.crystal',
+    '.ex',
+    '.exs',
+    '.erl',
+    '.hrl',
+    '.pas',
+    '.pp',
+    '.inc',
+    '.dpr',
+    '.dpk',
+    '.asm',
+    '.s',
+    '.S',
+    '.rkt',
+    '.scm',
+    '.lisp',
+    '.cl',
+
+    // Template languages (with logic)
+    '.erb',
+    '.ejs',
+    '.handlebars',
+    '.hbs',
+    '.mustache',
+    '.twig',
+
+    // CSS preprocessing (contains logic)
+    '.scss',
+    '.sass',
+    '.less',
+    '.styl',
+
+    // Markup with embedded code
+    '.asp',
+    '.aspx',
+    '.jsp',
+    '.cfm',
+    '.cfml',
+
+    // Protocol buffers and IDL
+    '.proto',
+    '.thrift',
+    '.avsc',
+    '.avdl',
+
+    // Build scripts (with logic)
+    '.sbt',
+    '.mill',
+    '.bazel',
+    '.bzl',
+    '.buck',
+
+    // Package specs (with code/logic)
+    '.podspec',
+    '.gemspec',
+    '.nuspec',
   ]);
 
   constructor(
@@ -83,8 +239,8 @@ export class GitCommitCollector {
     sinceDate.setDate(sinceDate.getDate() - this.windowSizeDays);
     const sinceTimestamp = Math.floor(sinceDate.getTime() / 1000);
 
-    // Get commit list with file stats using time window
-    const gitLogCmd = `git log ${this.branch} --numstat --format="%H|%ae|%at|%s" --since="${sinceTimestamp}" -n ${maxCommits}`;
+    // Get commit list with file stats using commit limit first, then time window
+    const gitLogCmd = `git log ${this.branch} -n ${maxCommits} --numstat --format="%H|%ae|%at|%s" --since="${sinceTimestamp}" --no-merges`;
 
     const logOutput = execSync(gitLogCmd, {
       cwd: this.repoPath,
@@ -94,7 +250,12 @@ export class GitCommitCollector {
 
     const fileStats: Map<string, FileStats> = new Map();
     const allRepoAuthors: Set<string> = new Set();
-    const lines = logOutput.split('\n');
+
+    // Clean up git output - remove empty lines and trim whitespace
+    const lines = logOutput
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
 
     let currentAuthor = '';
     let currentDate = new Date();
@@ -212,10 +373,6 @@ export class GitCommitCollector {
       });
     }
 
-    this.logger.info(
-      `Fetched data for ${results.length} files from ${Array.from(fileStats.values()).reduce((sum, stats) => sum + stats.commits, 0)} commits`,
-      '✅',
-    );
     return results;
   }
 }
