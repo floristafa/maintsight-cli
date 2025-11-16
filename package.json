@@ -1,6 +1,6 @@
 {
-  "name": "@floristafa/maintsight-cli",
-  "version": "1.13.1",
+  "name": "maintsight",
+  "version": "1.14.0",
   "description": "AI-powered maintenance risk predictor for git repositories using XGBoost",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
