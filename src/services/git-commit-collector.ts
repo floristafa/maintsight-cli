@@ -270,6 +270,35 @@ export class GitCommitCollector {
     return this.sourceExtensions.has(ext);
   }
 
+  private cleanFilePath(filepath: string): string | null {
+    // Skip special git entries
+    if (!filepath || filepath === '/dev/null' || filepath.includes('\0')) {
+      return null;
+    }
+
+    // Handle git rename syntax: "old_name => new_name" or "{old_name => new_name}"
+    if (filepath.includes(' => ')) {
+      const match = filepath.match(/(?:\{)?(.+?)\s*=>\s*(.+?)(?:\})?$/);
+      if (match) {
+        // Use the new name (after =>)
+        const newPath = match[2].trim();
+        return newPath === '/dev/null' ? null : newPath;
+      }
+    }
+
+    // Handle directory renames: "{old_dir => new_dir}/file.ext"
+    if (filepath.includes('{') && filepath.includes('}')) {
+      const match = filepath.match(/\{.+?\s*=>\s*(.+?)\}(.+)/);
+      if (match) {
+        // Construct path with new directory name
+        return match[1].trim() + match[2];
+      }
+    }
+
+    // Return original path if no rename syntax found
+    return filepath.trim();
+  }
+
   fetchCommitData(maxCommits: number = 10000): CommitData[] {
     this.logger.info(`Fetching commits from ${this.repoPath} (branch: ${this.branch})`, '🔄');
     this.logger.info(`Max commits: ${maxCommits}`, '📊');
@@ -324,11 +353,24 @@ export class GitCommitCollector {
         if (parts.length >= 3) {
           const added = parseInt(parts[0]) || 0;
           const removed = parseInt(parts[1]) || 0;
-          const filepath = parts[2];
+          const rawFilepath = parts[2];
 
+          // Clean up file path (handle renames)
+          const filepath = this.cleanFilePath(rawFilepath);
+          if (!filepath) {
+            continue;
+          }
+
+          // Skip non-source files
           if (!this.isSourceFile(filepath)) {
             continue;
           }
+
+          // Optional: For recent commits, check if file still exists
+          // Uncomment this if you want to only track currently existing files
+          // if (!this.isValidCurrentFile(filepath)) {
+          //   continue;
+          // }
 
           this.updateOrCreateFileStats(
             filepath,
