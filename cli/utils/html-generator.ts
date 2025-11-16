@@ -717,6 +717,12 @@ export function formatAsHTML(
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 15px;
             margin-top: 20px;
+            max-height: 280px; /* Height for ~10 contributors (2 rows of 5) */
+            overflow-y: auto;
+            padding: 10px;
+            border: 1px solid #E1E5FF;
+            border-radius: 8px;
+            background: #FAFBFF;
         }
 
         .author-item {
@@ -733,10 +739,7 @@ export function formatAsHTML(
             background: #e9ecef;
         }
 
-        .author-item.more-authors {
-            border-left-color: #95a5a6;
-            background: #ecf0f1;
-        }
+
 
         .author-avatar {
             width: 35px;
@@ -753,9 +756,6 @@ export function formatAsHTML(
             flex-shrink: 0;
         }
 
-        .more-authors .author-avatar {
-            background: #95a5a6;
-        }
 
         .author-name {
             font-size: 0.9em;
@@ -800,6 +800,7 @@ export function formatAsHTML(
 
             .authors-grid {
                 grid-template-columns: 1fr;
+                max-height: 400px;
             }
         }
     </style>
@@ -918,7 +919,6 @@ export function formatAsHTML(
             <h2 class="commit-stats">Repository Contributors (${commitStats.authorNames.length})</h2>
             <div class="authors-grid">
                 ${commitStats.authorNames
-                  .slice(0, 20)
                   .map(
                     (author) => `
                     <div class="author-item">
@@ -928,16 +928,6 @@ export function formatAsHTML(
                 `,
                   )
                   .join('')}
-                ${
-                  commitStats.authorNames.length > 20
-                    ? `
-                    <div class="author-item more-authors">
-                        <div class="author-avatar">+</div>
-                        <div class="author-name">${commitStats.authorNames.length - 20} more</div>
-                    </div>
-                `
-                    : ''
-                }
             </div>
         </div>
         `
