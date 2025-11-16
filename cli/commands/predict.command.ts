@@ -69,7 +69,7 @@ export function createPredictCommand(): Command {
         let results = predictions;
         const threshold = options.threshold ?? 0;
         if (threshold > 0) {
-          results = predictions.filter((p) => (p.degradation_score || p.risk_score) >= threshold);
+          results = predictions.filter((p) => p.degradation_score >= threshold);
         }
 
         spinner.succeed(`Predictions complete: ${results.length} files analyzed`);
@@ -145,8 +145,8 @@ function formatAsCSV(predictions: RiskPrediction[]): string {
   const headers = ['module', 'degradation_score', 'raw_prediction', 'risk_category'];
   const rows = predictions.map((p) => [
     p.module,
-    (p.degradation_score || p.risk_score).toFixed(4),
-    (p.raw_prediction || p.risk_score).toFixed(4),
+    p.degradation_score.toFixed(4),
+    p.raw_prediction.toFixed(4),
     p.risk_category,
   ]);
 
@@ -160,7 +160,7 @@ function formatAsMarkdown(predictions: RiskPrediction[], repoPath: string): stri
   const timestamp = new Date().toISOString();
 
   const sortedPredictions = [...predictions].sort(
-    (a, b) => (b.degradation_score || b.risk_score) - (a.degradation_score || a.risk_score),
+    (a, b) => b.degradation_score - a.degradation_score,
   );
 
   const riskDist = predictions.reduce(
@@ -192,10 +192,7 @@ function formatAsMarkdown(predictions: RiskPrediction[], repoPath: string): stri
 |------|------------------|----------|
 ${sortedPredictions
   .slice(0, 20)
-  .map(
-    (p) =>
-      `| \`${p.module}\` | ${(p.degradation_score || p.risk_score).toFixed(4)} | ${p.risk_category} |`,
-  )
+  .map((p) => `| \`${p.module}\` | ${p.degradation_score.toFixed(4)} | ${p.risk_category} |`)
   .join('\n')}
 
 ## Risk Categories

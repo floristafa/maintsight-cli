@@ -135,7 +135,7 @@ async function analyzeAndSaveResults(repoPath: string, outputPath: string) {
     const predictions = predictor.predict(commitData);
 
     // Filter high-risk files
-    const highRiskFiles = predictions.filter((p) => p.risk_score > 0.65);
+    const highRiskFiles = predictions.filter((p) => p.degradation_score > 0.65);
 
     // Save results
     await fs.writeFile(outputPath, JSON.stringify(highRiskFiles, null, 2), 'utf-8');

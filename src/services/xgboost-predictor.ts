@@ -71,7 +71,6 @@ export class XGBoostPredictor {
         ...feature,
         degradation_score: degradationScore,
         raw_prediction: rawScore,
-        risk_score: degradationScore, // For backward compatibility
         risk_category: riskCategory,
       };
     });

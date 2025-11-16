@@ -187,10 +187,10 @@ describe('XGBoostPredictor', () => {
 
       expect(predictions).toHaveLength(1);
       expect(predictions[0]).toHaveProperty('module', 'test.ts');
-      expect(predictions[0]).toHaveProperty('risk_score');
+      expect(predictions[0]).toHaveProperty('degradation_score');
       expect(predictions[0]).toHaveProperty('risk_category');
-      expect(predictions[0].risk_score).toBeGreaterThanOrEqual(-1);
-      expect(predictions[0].risk_score).toBeLessThanOrEqual(1);
+      expect(predictions[0].degradation_score).toBeGreaterThanOrEqual(-1);
+      expect(predictions[0].degradation_score).toBeLessThanOrEqual(1);
     });
 
     it('should categorize risks correctly', () => {

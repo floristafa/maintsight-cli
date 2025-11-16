@@ -105,7 +105,7 @@ function calculateFolderStats(node: FileTreeNode): {
     if (!n.children || n.children.length === 0) {
       // This is a file
       if (n.prediction) {
-        totalScore += n.prediction.degradation_score || n.prediction.risk_score;
+        totalScore += n.prediction.degradation_score;
         fileCount++;
       }
     } else {
@@ -132,7 +132,7 @@ function generateTreeHTML(node: FileTreeNode, depth: number = 0): string {
   if (!node.children || node.children.length === 0) {
     // This is a file
     if (node.prediction) {
-      const score = node.prediction.degradation_score || node.prediction.risk_score;
+      const score = node.prediction.degradation_score;
       const category = node.prediction.risk_category;
       const categoryClass = category.replace('_', '-');
 
@@ -234,13 +234,10 @@ export function formatAsHTML(
 
   // Calculate statistics
   const totalFiles = predictions.length;
-  const meanScore =
-    predictions.reduce((sum, p) => sum + (p.degradation_score || p.risk_score), 0) / totalFiles;
+  const meanScore = predictions.reduce((sum, p) => sum + p.degradation_score, 0) / totalFiles;
   const stdDev = Math.sqrt(
-    predictions.reduce(
-      (sum, p) => sum + Math.pow((p.degradation_score || p.risk_score) - meanScore, 2),
-      0,
-    ) / totalFiles,
+    predictions.reduce((sum, p) => sum + Math.pow(p.degradation_score - meanScore, 2), 0) /
+      totalFiles,
   );
 
   const riskDistribution = predictions.reduce(
@@ -262,7 +259,7 @@ export function formatAsHTML(
 
   // Sort predictions by risk score (highest first)
   const sortedPredictions = [...predictions].sort(
-    (a, b) => (b.degradation_score || b.risk_score) - (a.degradation_score || a.risk_score),
+    (a, b) => b.degradation_score - a.degradation_score,
   );
 
   // Build file tree structure
@@ -287,7 +284,7 @@ export function formatAsHTML(
     (acc, p) => {
       const ext = path.extname(p.module).toLowerCase() || '.no-ext';
       if (!acc[ext]) acc[ext] = { sum: 0, count: 0 };
-      acc[ext].sum += p.degradation_score || p.risk_score;
+      acc[ext].sum += p.degradation_score;
       acc[ext].count += 1;
       return acc;
     },
@@ -955,7 +952,7 @@ export function formatAsHTML(
                 ${sortedPredictions
                   .slice(0, 15)
                   .map((p) => {
-                    const score = p.degradation_score || p.risk_score;
+                    const score = p.degradation_score;
                     const categoryClass = p.risk_category.replace('_', '-');
                     return `
                   <div class="top-file-item ${categoryClass}">
