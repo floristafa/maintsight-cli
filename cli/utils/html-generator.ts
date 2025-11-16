@@ -135,9 +135,10 @@ function generateTreeHTML(node: FileTreeNode, depth: number = 0): string {
       const score = node.prediction.degradation_score;
       const category = node.prediction.risk_category;
       const categoryClass = category.replace('_', '-');
+      const indentStyle = `style="margin-left: ${depth * 20}px;"`;
 
       return `
-        <div class="tree-file ${categoryClass}">
+        <div class="tree-file ${categoryClass}" ${indentStyle}>
           <div class="file-name">${node.name}</div>
           <div class="file-score">${score.toFixed(4)}</div>
           <div class="risk-badge ${categoryClass}">${category.replace('_', ' ')}</div>
@@ -169,10 +170,11 @@ function generateTreeHTML(node: FileTreeNode, depth: number = 0): string {
   // Calculate folder statistics
   const stats = calculateFolderStats(node);
   const folderClass = stats.category;
+  const indentStyle = `style="margin-left: ${depth * 20}px;"`;
 
   return `
     <div class="tree-node" data-depth="${depth}">
-      <div class="tree-folder ${folderClass}" onclick="toggleFolder(this)">
+      <div class="tree-folder ${folderClass}" onclick="toggleFolder(this)" ${indentStyle}>
         <span class="folder-toggle">▶</span>
         <span class="folder-icon">📁</span>
         <span class="folder-name">${node.name}</span>
@@ -468,9 +470,6 @@ export function formatAsHTML(
         .risk-good { background: #eafaf1; color: #27ae60; }
 
         .tree-node {
-            margin-left: 20px;
-            border-left: 2px solid #ecf0f1;
-            padding-left: 15px;
             margin-bottom: 10px;
         }
 
@@ -663,7 +662,6 @@ export function formatAsHTML(
             max-height: 0;
             overflow: hidden;
             transition: max-height 0.3s ease-out;
-            margin-left: 20px;
         }
 
         .collapsible.expanded {
@@ -797,7 +795,7 @@ export function formatAsHTML(
             }
 
             .tree-node {
-                margin-left: 10px;
+                margin-left: 0;
             }
 
             .authors-grid {
@@ -947,10 +945,10 @@ export function formatAsHTML(
         }
 
         <div class="section">
-            <h2 class="top-files">Highest Risk Files (Top 15)</h2>
+            <h2 class="top-files">Highest Risk Files (Top 30)</h2>
             <div class="top-files-list">
                 ${sortedPredictions
-                  .slice(0, 15)
+                  .slice(0, 30)
                   .map((p) => {
                     const score = p.degradation_score;
                     const categoryClass = p.risk_category.replace('_', '-');
