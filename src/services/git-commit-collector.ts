@@ -232,6 +232,7 @@ export class GitCommitCollector {
     private repoPath: string,
     private branch: string = 'main',
     private windowSizeDays: number = 150,
+    private onlyExistingFiles: boolean = true, // Only analyze files that currently exist
   ) {
     this.logger = new Logger('GitCommitCollector');
 
@@ -270,33 +271,62 @@ export class GitCommitCollector {
     return this.sourceExtensions.has(ext);
   }
 
-  private cleanFilePath(filepath: string): string | null {
-    // Skip special git entries
+  private parseRenameInfo(
+    filepath: string,
+  ): { currentPath: string; oldPath: string | null } | null {
     if (!filepath || filepath === '/dev/null' || filepath.includes('\0')) {
       return null;
     }
 
-    // Handle git rename syntax: "old_name => new_name" or "{old_name => new_name}"
-    if (filepath.includes(' => ')) {
-      const match = filepath.match(/(?:\{)?(.+?)\s*=>\s*(.+?)(?:\})?$/);
+    let cleanPath = filepath.trim();
+    let oldPath: string | null = null;
+
+    // Handle various git rename patterns (order matters - most specific first)
+
+    // Pattern 1: "{old_dir => new_dir}/file.ext" (directory rename)
+    if (
+      cleanPath.includes('{') &&
+      cleanPath.includes('}') &&
+      cleanPath.includes(' => ') &&
+      !cleanPath.startsWith('{')
+    ) {
+      const match = cleanPath.match(/\{([^}]+)\s*=>\s*([^}]+)\}(.*)$/);
       if (match) {
-        // Use the new name (after =>)
-        const newPath = match[2].trim();
-        return newPath === '/dev/null' ? null : newPath;
+        const [, oldDir, newDir, restPath] = match;
+        oldPath = oldDir.trim() + restPath;
+        cleanPath = newDir.trim() + restPath;
       }
     }
 
-    // Handle directory renames: "{old_dir => new_dir}/file.ext"
-    if (filepath.includes('{') && filepath.includes('}')) {
-      const match = filepath.match(/\{.+?\s*=>\s*(.+?)\}(.+)/);
+    // Pattern 2: "{old_file => new_file}" (file rename in braces)
+    else if (cleanPath.startsWith('{') && cleanPath.endsWith('}') && cleanPath.includes(' => ')) {
+      const match = cleanPath.match(/^\{(.+)\s*=>\s*(.+)\}$/);
       if (match) {
-        // Construct path with new directory name
-        return match[1].trim() + match[2];
+        oldPath = match[1].trim();
+        cleanPath = match[2].trim();
+        if (cleanPath === '/dev/null') return null;
       }
     }
 
-    // Return original path if no rename syntax found
-    return filepath.trim();
+    // Pattern 3: "old_path => new_path" (simple rename - most general, so last)
+    else if (cleanPath.includes(' => ')) {
+      const parts = cleanPath.split(' => ');
+      if (parts.length === 2) {
+        oldPath = parts[0].trim();
+        cleanPath = parts[1].trim();
+        if (cleanPath === '/dev/null') return null; // File deletion
+      }
+    }
+
+    // Skip obviously invalid paths that we couldn't parse
+    if (cleanPath.includes('=>') || cleanPath.includes('{') || cleanPath.includes('}')) {
+      return null;
+    }
+
+    return {
+      currentPath: cleanPath,
+      oldPath: oldPath,
+    };
   }
 
   fetchCommitData(maxCommits: number = 10000): CommitData[] {
@@ -304,13 +334,17 @@ export class GitCommitCollector {
     this.logger.info(`Max commits: ${maxCommits}`, '📊');
     this.logger.info(`Time window: last ${this.windowSizeDays} days`, '📅');
 
+    // Track path mappings for consolidating renamed file histories
+    const pathMappings = new Map<string, string>(); // oldPath -> currentPath
+
     // Calculate since date for time window
     const sinceDate = new Date();
     sinceDate.setDate(sinceDate.getDate() - this.windowSizeDays);
     const sinceTimestamp = Math.floor(sinceDate.getTime() / 1000);
 
     // Get commit list with file stats using commit limit first, then time window
-    const gitLogCmd = `git log ${this.branch} -n ${maxCommits} --numstat --format="%H|%ae|%at|%s" --since="${sinceTimestamp}" --no-merges`;
+    // Add --follow-renames to track files across moves
+    const gitLogCmd = `git log ${this.branch} -n ${maxCommits} --numstat --find-renames --format="%H|%ae|%at|%s" --since="${sinceTimestamp}" --no-merges`;
 
     const logOutput = execSync(gitLogCmd, {
       cwd: this.repoPath,
@@ -355,25 +389,45 @@ export class GitCommitCollector {
           const removed = parseInt(parts[1]) || 0;
           const rawFilepath = parts[2];
 
-          // Clean up file path (handle renames)
-          const filepath = this.cleanFilePath(rawFilepath);
-          if (!filepath) {
-            continue;
+          // Handle rename tracking
+          const renameInfo = this.parseRenameInfo(rawFilepath);
+          if (!renameInfo) {
+            continue; // Invalid or deleted file
+          }
+
+          const { currentPath, oldPath } = renameInfo;
+
+          // Track renames for path consolidation
+          if (oldPath && oldPath !== currentPath) {
+            pathMappings.set(oldPath, currentPath);
+          }
+
+          // Determine the canonical path (follow rename chain)
+          let canonicalPath = currentPath;
+          for (const [oldP, newP] of pathMappings) {
+            if (currentPath === oldP) {
+              canonicalPath = newP;
+              break;
+            }
           }
 
           // Skip non-source files
-          if (!this.isSourceFile(filepath)) {
+          if (!this.isSourceFile(canonicalPath)) {
             continue;
           }
 
-          // Optional: For recent commits, check if file still exists
-          // Uncomment this if you want to only track currently existing files
-          // if (!this.isValidCurrentFile(filepath)) {
-          //   continue;
-          // }
+          // Filter to only files that currently exist (if enabled)
+          if (this.onlyExistingFiles) {
+            const fullPath = path.join(this.repoPath, canonicalPath);
+            if (!fs.existsSync(fullPath)) {
+              continue; // Skip files that no longer exist
+            }
+          }
 
+          // Always use the canonical path for accumulating stats
+          // This consolidates history from old paths under the current path
           this.updateOrCreateFileStats(
-            filepath,
+            canonicalPath,
             fileStats,
             added,
             removed,

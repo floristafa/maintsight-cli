@@ -52,6 +52,7 @@ export function createPredictCommand(): Command {
           resolvedPath,
           options.branch || 'main',
           options.windowSizeDays || 150,
+          true, // Only analyze files that currently exist
         );
         const commitData = gitCollector.fetchCommitData(options.maxCommits || 10000);
 
