@@ -919,6 +919,7 @@ export function formatAsHTML(
             <h2 class="commit-stats">Repository Contributors (${commitStats.authorNames.length})</h2>
             <div class="authors-grid">
                 ${commitStats.authorNames
+                  .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
                   .map(
                     (author) => `
                     <div class="author-item">
