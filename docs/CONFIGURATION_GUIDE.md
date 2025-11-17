@@ -41,13 +41,13 @@ export MAINTSIGHT_LOG_LEVEL=DEBUG
 
 ### `MAINTSIGHT_DATA_DIR`
 
-Directory where prediction results are saved.
+Directory where HTML reports are saved.
 
 ```bash
 export MAINTSIGHT_DATA_DIR=/path/to/data
 ```
 
-**Default**: `~/.maintsight`
+**Default**: `<repository>/.maintsight`
 
 ## 📁 Output Configuration
 
@@ -58,6 +58,7 @@ MaintSight supports multiple output formats:
 - **JSON**: Machine-readable format, ideal for integration
 - **CSV**: Spreadsheet-compatible format, good for analysis
 - **Markdown**: Human-readable format, perfect for reports
+- **HTML**: Interactive format with visualizations and detailed analysis
 
 ### Output Location
 
@@ -90,15 +91,15 @@ The XGBoost model uses 16 features extracted from git history:
 15. **Code complexity proxy**: Inferred from change patterns
 16. **Maintenance burden**: Combined metric
 
-### Risk Thresholds
+### Degradation Thresholds
 
-The model categorizes files based on risk score:
+The model categorizes files based on degradation score:
 
 ```
-No Risk:     0.00 - 0.22
-Low Risk:    0.22 - 0.47
-Medium Risk: 0.47 - 0.65
-High Risk:   0.65 - 1.00
+Improved:           < 0.0
+Stable:           0.0 - 0.1
+Degraded:         0.1 - 0.2
+Severely Degraded:  > 0.2
 ```
 
 ## 📊 Logging Configuration
@@ -134,39 +135,35 @@ This shows:
 
 ## 💾 Data Storage
 
-### Automatic Result Saving
+### Automatic Report Generation
 
-MaintSight automatically saves all prediction results for historical tracking:
+MaintSight automatically generates interactive HTML reports in your repository:
 
 ```
-~/.maintsight/
-├── my-project/
-│   ├── 2024-01-15T10-30-45.csv
-│   ├── 2024-01-16T14-22-10.csv
-│   └── 2024-01-17T09-15-33.csv
-└── another-project/
-    └── 2024-01-15T11-45-20.csv
+my-project/
+└── .maintsight/
+    └── report.html
 ```
 
-### CSV Format
+### HTML Report Features
 
-Saved CSV files contain:
+Interactive reports contain:
 
-- `module`: File path
-- `risk_score`: Numerical risk score (0-1)
-- `risk_category`: Risk classification
-- `timestamp`: When the analysis was run
+- **Visual charts**: Degradation distribution and trends
+- **File explorer**: Drill-down analysis by file
+- **Metrics dashboard**: Detailed statistics per file
+- **Export options**: Download data in various formats
+- **Responsive design**: Works on desktop and mobile
 
-### Accessing Historical Data
+### Accessing Reports
 
-View trends over time by comparing saved results:
+Reports are automatically opened after analysis or can be accessed manually:
 
 ```bash
-# List all saved results
-ls ~/.maintsight/my-project/
+# Report location
+open .maintsight/report.html
 
-# Compare results
-diff ~/.maintsight/my-project/2024-01-15*.csv ~/.maintsight/my-project/2024-01-17*.csv
+# Or copy the file:// URL shown in terminal
 ```
 
 ## 🔄 CI/CD Configuration
@@ -196,11 +193,11 @@ jobs:
           maintsight predict --format json --output risk-report.json
           maintsight stats
 
-      - name: Fail if high risk
+      - name: Fail if severe degradation
         run: |
-          high_risk=$(jq '[.[] | select(.risk_score > 0.8)] | length' risk-report.json)
-          if [ "$high_risk" -gt "0" ]; then
-            echo "Found $high_risk high-risk files!"
+          severe=$(jq '[.[] | select(.degradation_score > 0.2)] | length' risk-report.json)
+          if [ "$severe" -gt "0" ]; then
+            echo "Found $severe severely degraded files!"
             exit 1
           fi
 ```
@@ -212,7 +209,7 @@ maintenance-check:
   image: node:18
   script:
     - npm install -g maintsight
-    - maintsight predict --threshold 0.65 --format markdown
+    - maintsight predict --threshold 0.1 --format markdown
   artifacts:
     reports:
       - risk-report.md

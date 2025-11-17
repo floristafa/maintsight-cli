@@ -1,6 +1,6 @@
 # MaintSight Documentation
 
-Welcome to the official documentation for MaintSight, the AI-powered maintenance risk predictor for git repositories.
+Welcome to the official documentation for MaintSight, the AI-powered maintenance degradation predictor for git repositories.
 
 ## 📚 Table of Contents
 
@@ -22,7 +22,7 @@ If you are new to MaintSight, we recommend starting with the [**User Guide**](./
 
 ## 🔗 Resources
 
-- **📦 GitHub**: [github.com/maintsight/maintsight](https://github.com/maintsight/maintsight)
-- **💬 Community**: [GitHub Discussions](https://github.com/maintsight/maintsight/discussions)
-- **🐛 Report Issues**: [GitHub Issues](https://github.com/maintsight/maintsight/issues)
+- **📦 GitHub**: [github.com/floristafa/maintsight-cli](https://github.com/floristafa/maintsight-cli)
+- **💬 Community**: [GitHub Discussions](https://github.com/floristafa/maintsight-cli/discussions)
+- **🐛 Report Issues**: [GitHub Issues](https://github.com/floristafa/maintsight-cli/issues)
 - **📊 npm**: [npmjs.com/package/maintsight](https://www.npmjs.com/package/maintsight)

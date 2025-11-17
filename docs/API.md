@@ -1,6 +1,6 @@
 # MaintSight API Reference
 
-MaintSight provides a programmatic API for integrating maintenance risk prediction into your applications.
+MaintSight provides a programmatic API for integrating maintenance degradation prediction into your applications.
 
 ## Installation
 
@@ -16,11 +16,11 @@ import { GitCommitCollector, FeatureEngineer, XGBoostPredictor } from 'maintsigh
 async function analyzeMaintenance(repoPath: string) {
   // Load the model
   const predictor = new XGBoostPredictor();
-  await predictor.loadModel('./node_modules/maintsight/models/model.json');
+  predictor.loadModel(); // Uses built-in model
 
   // Collect git data
-  const collector = new GitCommitCollector(repoPath);
-  const commitData = collector.fetchCommitData(300);
+  const collector = new GitCommitCollector(repoPath, 'main', 150, true);
+  const commitData = collector.fetchCommitData(10000);
 
   // Run predictions
   const predictions = predictor.predict(commitData);
@@ -37,9 +37,14 @@ Collects and processes git commit history.
 
 ```typescript
 class GitCommitCollector {
-  constructor(repoPath: string, branch?: string = 'main');
+  constructor(
+    repoPath: string,
+    branch: string = 'main',
+    windowSizeDays: number = 150,
+    onlyExistingFiles: boolean = true,
+  );
 
-  fetchCommitData(maxCommits?: number = 300): FileCommitData[];
+  fetchCommitData(maxCommits?: number = 10000): FileCommitData[];
 }
 ```
 
@@ -59,11 +64,11 @@ Loads the model and makes predictions.
 
 ```typescript
 class XGBoostPredictor {
-  async loadModel(modelPath: string): Promise<void>;
+  loadModel(modelPath?: string): void; // Uses built-in model if no path provided
 
   predict(fileCommitData: FileCommitData[]): RiskPrediction[];
 
-  predictSingle(features: Features): RiskPrediction;
+  predictSingle(features: CommitFeatures): RiskPrediction;
 }
 ```
 
@@ -86,8 +91,9 @@ interface CommitInfo {
 
 interface RiskPrediction {
   module: string;
-  risk_score: number;
-  risk_category: 'no-risk' | 'low-risk' | 'medium-risk' | 'high-risk';
+  degradation_score: number;
+  raw_prediction: number;
+  risk_category: 'improved' | 'stable' | 'degraded' | 'severely_degraded';
 }
 
 interface Features {
@@ -121,11 +127,11 @@ async function analyzeAndSaveResults(repoPath: string, outputPath: string) {
   try {
     // Initialize predictor
     const predictor = new XGBoostPredictor();
-    await predictor.loadModel('./node_modules/maintsight/models/model.json');
+    predictor.loadModel(); // Uses built-in model
 
     // Collect commit data
-    const collector = new GitCommitCollector(repoPath);
-    const commitData = collector.fetchCommitData(500);
+    const collector = new GitCommitCollector(repoPath, 'main', 150, true);
+    const commitData = collector.fetchCommitData(10000);
 
     if (commitData.length === 0) {
       throw new Error('No source files found in repository');
@@ -134,15 +140,15 @@ async function analyzeAndSaveResults(repoPath: string, outputPath: string) {
     // Get predictions
     const predictions = predictor.predict(commitData);
 
-    // Filter high-risk files
-    const highRiskFiles = predictions.filter((p) => p.degradation_score > 0.65);
+    // Filter degraded files
+    const degradedFiles = predictions.filter((p) => p.degradation_score > 0.1);
 
     // Save results
-    await fs.writeFile(outputPath, JSON.stringify(highRiskFiles, null, 2), 'utf-8');
+    await fs.writeFile(outputPath, JSON.stringify(degradedFiles, null, 2), 'utf-8');
 
-    console.log(`Found ${highRiskFiles.length} high-risk files`);
+    console.log(`Found ${degradedFiles.length} degraded files`);
 
-    return highRiskFiles;
+    return degradedFiles;
   } catch (error) {
     console.error('Analysis failed:', error);
     throw error;

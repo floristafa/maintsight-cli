@@ -38,8 +38,8 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
 
 Unsure where to begin contributing? You can start by looking through these `beginner` and `help-wanted` issues:
 
-- [Beginner issues](https://github.com/maintsight/maintsight/labels/beginner) - issues which should only require a few lines of code
-- [Help wanted issues](https://github.com/maintsight/maintsight/labels/help%20wanted) - issues which should be a bit more involved than `beginner` issues
+- [Beginner issues](https://github.com/floristafa/maintsight-cli/labels/beginner) - issues which should only require a few lines of code
+- [Help wanted issues](https://github.com/floristafa/maintsight-cli/labels/help%20wanted) - issues which should be a bit more involved than `beginner` issues
 
 ### Pull Requests
 
@@ -56,8 +56,8 @@ Unsure where to begin contributing? You can start by looking through these `begi
 
 ```bash
 # Clone your fork
-git clone https://github.com/your-username/maintsight.git
-cd maintsight
+git clone https://github.com/your-username/maintsight-cli.git
+cd maintsight-cli
 
 # Install dependencies
 npm install
@@ -154,6 +154,14 @@ describe('test', () => {
 3. Create a PR with version bump
 4. After merge, create a GitHub release
 5. Package will be automatically published to npm
+
+## Available Scripts
+
+- `npm run build` - Build the TypeScript project
+- `npm run test` - Run the test suite
+- `npm run lint` - Run ESLint
+- `npm run lint:fix` - Fix ESLint issues automatically
+- `npm run cli:dev` - Run the CLI in development mode
 
 ## Questions?
 

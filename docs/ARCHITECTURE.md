@@ -1,6 +1,6 @@
 # MaintSight Architecture
 
-This document describes the technical architecture of MaintSight, a maintenance risk prediction tool for git repositories.
+This document describes the technical architecture of MaintSight, a maintenance degradation prediction tool for git repositories.
 
 ## System Overview
 
@@ -17,11 +17,12 @@ MaintSight uses a simple, efficient architecture focused on performance and accu
 │ • GitCommitCollector        │
 │ • FeatureEngineer           │
 │ • XGBoostPredictor          │
+│ • HTMLGenerator             │
 └─────────────┬───────────────┘
               │
 ┌─────────────┴───────────────┐
 │      XGBoost Model          │
-│    (models/model.json)      │
+│  (cli/models/model.json)    │
 └─────────────────────────────┘
 ```
 
@@ -63,12 +64,12 @@ Loads and executes the pre-trained XGBoost model:
 - Performs tree-based inference
 - Maps scores to risk categories
 
-**Risk Categories:**
+**Degradation Categories:**
 
-- No Risk: 0.00 - 0.22
-- Low Risk: 0.22 - 0.47
-- Medium Risk: 0.47 - 0.65
-- High Risk: 0.65 - 1.00
+- Improved: < 0.0
+- Stable: 0.0 - 0.1
+- Degraded: 0.1 - 0.2
+- Severely Degraded: > 0.2
 
 ## Data Flow
 
@@ -76,7 +77,8 @@ Loads and executes the pre-trained XGBoost model:
 2. **Git Analysis**: Extract commit history using git log
 3. **Feature Engineering**: Transform commits into 16 numerical features
 4. **Prediction**: Run XGBoost model inference
-5. **Output**: Risk scores and categories for each file
+5. **Output**: Degradation scores and categories for each file
+6. **Report Generation**: Create interactive HTML reports
 
 ## Implementation Details
 
@@ -109,13 +111,14 @@ Uses a custom lightweight logger that:
 - Includes timestamps and component names
 - Uses color coding for visibility
 
-### Data Persistence
+### Report Generation
 
-Automatically saves prediction results to `~/.maintsight/`:
+Automatically generates interactive HTML reports to `<repository>/.maintsight/`:
 
-- Creates repository-specific folders
-- Saves timestamped CSV files
-- Enables historical trend analysis
+- Creates interactive visualizations
+- Includes detailed file metrics
+- Enables drill-down analysis
+- Provides exportable data
 
 ## Performance Characteristics
 

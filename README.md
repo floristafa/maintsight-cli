@@ -5,9 +5,9 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 
-> **AI-powered maintenance risk predictor for git repositories using XGBoost machine learning**
+> **AI-powered maintenance degradation predictor for git repositories using XGBoost machine learning**
 
-MaintSight analyzes your git repository's commit history and code patterns to predict maintenance risks at the file level. Using a trained XGBoost model, it identifies technical debt hotspots and helps prioritize refactoring efforts.
+MaintSight analyzes your git repository's commit history and code patterns to predict maintenance degradation at the file level. Using a trained XGBoost model, it identifies code quality trends and helps prioritize refactoring efforts by detecting files that are degrading over time.
 
 ## 📋 Table of Contents
 
@@ -16,7 +16,7 @@ MaintSight analyzes your git repository's commit history and code patterns to pr
 - [Installation](#-installation)
 - [Usage](#-usage)
 - [Output Formats](#-output-formats)
-- [Risk Categories](#-risk-categories)
+- [Degradation Categories](#-degradation-categories)
 - [Command Reference](#-command-reference)
 - [Model Information](#-model-information)
 - [Development](#-development)
@@ -26,12 +26,12 @@ MaintSight analyzes your git repository's commit history and code patterns to pr
 
 ## ✨ Features
 
-- 🤖 **XGBoost ML Predictions**: Pre-trained model for maintenance risk scoring
-- 📊 **Git History Analysis**: Analyzes commits, bug fixes, and collaboration patterns
-- 📈 **Multiple Output Formats**: JSON, CSV, or Markdown reports
-- 🎯 **Risk Categorization**: Four-level risk classification (No/Low/Medium/High)
-- 📉 **Statistical Analysis**: Detailed repository health metrics
-- 🔍 **Threshold Filtering**: Focus on high-risk files only
+- 🤖 **XGBoost ML Predictions**: Pre-trained model for maintenance degradation scoring
+- 📊 **Git History Analysis**: Analyzes commits, changes, and collaboration patterns
+- 📈 **Multiple Output Formats**: JSON, CSV, Markdown, or interactive HTML reports
+- 🎯 **Degradation Categorization**: Four-level classification (Improved/Stable/Degraded/Severely Degraded)
+- 🔍 **Threshold Filtering**: Focus on degraded files only
+- 🌐 **Interactive HTML Reports**: Rich, interactive analysis with visualizations
 - ⚡ **Fast & Efficient**: Analyzes hundreds of files in seconds
 - 🛠️ **Easy Integration**: Simple CLI interface and npm package
 
@@ -41,14 +41,17 @@ MaintSight analyzes your git repository's commit history and code patterns to pr
 # Install globally
 npm install -g maintsight
 
-# Run predictions on current directory
+# Run predictions on current directory (generates interactive HTML report)
 maintsight predict
 
-# Show only high-risk files
-maintsight predict -t 0.65
+# Show only degraded files
+maintsight predict -t 0.1
 
 # Generate markdown report
 maintsight predict -f markdown -o report.md
+
+# Generate standalone HTML report
+maintsight predict -f html -o report.html
 ```
 
 ## 📦 Installation
@@ -68,8 +71,8 @@ npm install maintsight
 ### From Source
 
 ```bash
-git clone https://github.com/maintsight/maintsight.git
-cd maintsight
+git clone https://github.com/floristafa/maintsight-cli.git
+cd maintsight-cli
 npm install
 npm run build
 npm link
@@ -96,30 +99,23 @@ maintsight predict -o results.json
 # Analyze specific branch
 maintsight predict -b develop
 
-# Limit commit history
-maintsight predict -n 500
+# Limit commit analysis window
+maintsight predict -w 90  # Analyze last 90 days
 
-# Filter by risk threshold
-maintsight predict -t 0.65  # Show only high-risk files
+# Limit number of commits
+maintsight predict -n 5000
+
+# Filter by degradation threshold
+maintsight predict -t 0.1  # Show only degraded files
 
 # Generate CSV for Excel
 maintsight predict -f csv -o analysis.csv
 
+# Generate standalone HTML report
+maintsight predict -f html -o report.html
+
 # Verbose output for debugging
 maintsight predict -v
-```
-
-### View Statistics
-
-```bash
-# Basic statistics
-maintsight stats
-
-# Detailed statistics with file type breakdown
-maintsight stats -d
-
-# Stats for specific branch
-maintsight stats -b feature/new-feature
 ```
 
 ## 📊 Output Formats
@@ -130,13 +126,15 @@ maintsight stats -b feature/new-feature
 [
   {
     "module": "src/legacy/parser.ts",
-    "risk_score": 0.8234,
-    "risk_category": "high-risk"
+    "degradation_score": 0.3456,
+    "raw_prediction": 0.3456,
+    "risk_category": "severely_degraded"
   },
   {
     "module": "src/utils/helpers.ts",
-    "risk_score": 0.1523,
-    "risk_category": "no-risk"
+    "degradation_score": -0.1234,
+    "raw_prediction": -0.1234,
+    "risk_category": "improved"
   }
 ]
 ```
@@ -144,34 +142,43 @@ maintsight stats -b feature/new-feature
 ### CSV
 
 ```csv
-file,risk_score,risk_category
-"src/legacy/parser.ts","0.8234","high-risk"
-"src/utils/helpers.ts","0.1523","no-risk"
+module,degradation_score,raw_prediction,risk_category
+"src/legacy/parser.ts","0.3456","0.3456","severely_degraded"
+"src/utils/helpers.ts","-0.1234","-0.1234","improved"
 ```
 
 ### Markdown Report
 
 Generates a comprehensive report with:
 
-- Risk distribution summary
-- Top 20 high-risk files
-- Visual risk breakdown
+- Degradation distribution summary
+- Top 20 most degraded files
+- Category breakdown with percentages
 - Actionable recommendations
 
-## 🎯 Risk Categories
+### Interactive HTML Report
 
-| Score Range | Category       | Description                  | Action              |
-| ----------- | -------------- | ---------------------------- | ------------------- |
-| 0.00-0.22   | ✅ No Risk     | Well-maintained, stable code | Regular maintenance |
-| 0.22-0.47   | 🟡 Low Risk    | Minor issues present         | Schedule for review |
-| 0.47-0.65   | 🟠 Medium Risk | Needs attention              | Plan refactoring    |
-| 0.65-1.00   | 🔴 High Risk   | Critical maintenance needed  | Immediate action    |
+Always generated automatically in `.maintsight/` folder with:
+
+- Visual degradation trends
+- Interactive file explorer
+- Detailed metrics per file
+- Commit history analysis
+
+## 🎯 Degradation Categories
+
+| Score Range | Category             | Description                      | Action                     |
+| ----------- | -------------------- | -------------------------------- | -------------------------- |
+| < 0.0       | 🟢 Improved          | Code quality improving over time | Continue good practices    |
+| 0.0-0.1     | 🔵 Stable            | Code quality stable              | Regular maintenance        |
+| 0.1-0.2     | 🟡 Degraded          | Code quality declining           | Schedule for refactoring   |
+| > 0.2       | 🔴 Severely Degraded | Rapid quality decline            | Immediate attention needed |
 
 ## 📚 Command Reference
 
 ### `maintsight predict`
 
-Analyze repository and predict maintenance risks.
+Analyze repository and predict maintenance degradation.
 
 ```bash
 maintsight predict [path] [options]
@@ -180,59 +187,44 @@ maintsight predict [path] [options]
 **Options:**
 
 - `-b, --branch <branch>` - Git branch to analyze (default: "main")
-- `-n, --max-commits <n>` - Maximum commits to analyze (default: 300)
+- `-n, --max-commits <n>` - Maximum commits to analyze (default: 10000)
+- `-w, --window-size-days <n>` - Time window in days for analysis (default: 150)
 - `-o, --output <path>` - Output file path
-- `-f, --format <fmt>` - Output format: json|csv|markdown (default: "json")
-- `-t, --threshold <n>` - Risk threshold filter (0-1)
+- `-f, --format <fmt>` - Output format: json|csv|markdown|html (default: "json")
+- `-t, --threshold <n>` - Degradation threshold filter (show files above this score)
 - `-v, --verbose` - Verbose output
-
-### `maintsight stats`
-
-Display repository maintenance statistics.
-
-```bash
-maintsight stats [path] [options]
-```
-
-**Options:**
-
-- `-b, --branch <branch>` - Git branch to analyze (default: "main")
-- `-n, --max-commits <n>` - Maximum commits to analyze (default: 300)
-- `-d, --detailed` - Show detailed statistics
 
 ### `maintsight help`
 
 Show help information.
 
 ```bash
-maintsight help [command]
+maintsight help
 ```
 
 ## 🧠 Model Information
 
-MaintSight uses an XGBoost model trained on software maintenance patterns. The model analyzes 16 features:
+MaintSight uses an XGBoost model trained on software maintenance degradation patterns. The model predicts how code quality changes over time by analyzing git commit patterns and code evolution metrics.
 
-### Primary Features
+### Key Features Analyzed
 
-- **lines_added**: Total lines added
-- **lines_deleted**: Total lines removed
-- **churn**: Total code churn
-- **prs**: Number of commits
-- **unique_authors**: Number of contributors
-- **bug_prs**: Bug fix commits
+The model considers multiple dimensions of code evolution:
 
-### Derived Features
+- **Commit patterns**: Frequency, size, and timing of changes
+- **Author collaboration**: Number of contributors and collaboration patterns
+- **Code churn**: Lines added, removed, and modified over time
+- **Change consistency**: Regularity and predictability of modifications
+- **Bug indicators**: Patterns suggesting defects or fixes
+- **Temporal factors**: File age and time since last modification
 
-- **bug_ratio**: Ratio of bug fixes to total commits
-- **churn_per_pr**: Average churn per commit
-- **lines_per_pr**: Average lines changed per commit
-- **lines_per_author**: Code ownership concentration
-- **author_concentration**: Inverse of unique authors
-- **add_del_ratio**: Code growth ratio
-- **deletion_ratio**: Code removal patterns
-- **bug_density**: Bug fixes per line of code
-- **collaboration_complexity**: Team coordination metric
-- **feedback_count**: Review feedback (if available)
+### Prediction Output
+
+- **degradation_score**: Numerical score indicating code quality trend
+  - Negative values: Quality improving
+  - Positive values: Quality degrading
+  - Higher magnitude = stronger trend
+- **risk_category**: Classification based on degradation severity
+- **raw_prediction**: Unprocessed model output
 
 ## 🔧 Development
 
@@ -246,8 +238,8 @@ MaintSight uses an XGBoost model trained on software maintenance patterns. The m
 
 ```bash
 # Clone repository
-git clone https://github.com/maintsight/maintsight.git
-cd maintsight
+git clone https://github.com/floristafa/maintsight-cli.git
+cd maintsight-cli
 
 # Install dependencies
 npm install
@@ -262,22 +254,27 @@ npm run cli:dev predict ./test-repo
 ### Project Structure
 
 ```
-maintsight/
+maintsight-cli/
 ├── src/
 │   ├── services/          # Core services
 │   │   ├── git-commit-collector.ts
 │   │   ├── feature-engineer.ts
 │   │   └── xgboost-predictor.ts
+│   ├── interfaces/       # TypeScript interfaces
+│   │   ├── risk-prediction.interface.ts
+│   │   ├── risk-category.enum.ts
+│   │   └── ...
 │   ├── utils/            # Utilities
 │   │   └── simple-logger.ts
 │   └── index.ts          # Main exports
 ├── cli/
 │   ├── commands/         # CLI commands
-│   │   ├── predict.command.ts
-│   │   └── stats.command.ts
+│   │   └── predict.command.ts
+│   ├── utils/           # CLI utilities
+│   │   └── html-generator.ts
 │   └── maintsight-cli.ts # CLI entry point
-├── models/
-│   └── model.json        # XGBoost model
+├── cli/models/
+│   └── xgboost-model.json # XGBoost model
 └── tests/               # Test files
 ```
 
@@ -327,7 +324,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 ## 🐛 Bug Reports
 
-Found a bug? Please [open an issue](https://github.com/maintsight/maintsight/issues/new) with:
+Found a bug? Please [open an issue](https://github.com/floristafa/maintsight-cli/issues/new) with:
 
 - MaintSight version
 - Node.js version
@@ -349,4 +346,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Made with ❤️ by the MaintSight Team**
 
-[Website](https://github.com/maintsight/maintsight) | [Documentation](https://github.com/maintsight/maintsight#readme) | [Issues](https://github.com/maintsight/maintsight/issues)
+[Repository](https://github.com/floristafa/maintsight-cli) | [Documentation](https://github.com/floristafa/maintsight-cli#readme) | [Issues](https://github.com/floristafa/maintsight-cli/issues)

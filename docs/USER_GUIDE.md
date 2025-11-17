@@ -1,6 +1,6 @@
 # MaintSight User Guide
 
-This guide provides comprehensive instructions for using MaintSight to analyze and predict maintenance risks in your git repositories.
+This guide provides comprehensive instructions for using MaintSight to analyze and predict maintenance degradation in your git repositories.
 
 ## 📚 Table of Contents
 
@@ -8,9 +8,8 @@ This guide provides comprehensive instructions for using MaintSight to analyze a
 - [**Quick Start**](#-quick-start)
 - [**CLI Reference**](#-cli-reference)
   - [predict](#predict)
-  - [stats](#stats)
 - [**Output Formats**](#-output-formats)
-- [**Risk Categories**](#-risk-categories)
+- [**Degradation Categories**](#-degradation-categories)
 - [**Configuration**](#-configuration)
 - [**Usage Examples**](#-usage-examples)
 - [**Troubleshooting**](#-troubleshooting)
@@ -40,29 +39,21 @@ The simplest way to get started is by running a prediction on your current direc
 maintsight predict
 ```
 
-This will analyze your git repository and output maintenance risk predictions in JSON format.
+This will analyze your git repository and output maintenance degradation predictions in JSON format, plus generate an interactive HTML report.
 
-### 2. Get Repository Statistics
+### 2. Filter Degraded Files
 
-To see a detailed breakdown of your repository's maintenance health:
-
-```bash
-maintsight stats
-```
-
-### 3. Filter High-Risk Files
-
-Focus on files that need immediate attention:
+Focus on files that are degrading and need attention:
 
 ```bash
-maintsight predict --threshold 0.65
+maintsight predict --threshold 0.1
 ```
 
 ## CLI Reference
 
 ### `predict`
 
-Analyzes a git repository and predicts maintenance risks for each file.
+Analyzes a git repository and predicts maintenance degradation for each file.
 
 ```bash
 maintsight predict [path] [options]
@@ -74,33 +65,15 @@ maintsight predict [path] [options]
 
 **Options:**
 
-| Flag                      | Description                                     | Default |
-| ------------------------- | ----------------------------------------------- | ------- |
-| `-b, --branch <branch>`   | Git branch to analyze                           | `main`  |
-| `-n, --max-commits <num>` | Maximum number of commits to analyze            | `300`   |
-| `-o, --output <path>`     | Output file path (defaults to stdout)           | stdout  |
-| `-f, --format <format>`   | Output format: `json`, `csv`, or `markdown`     | `json`  |
-| `-t, --threshold <num>`   | Only show files with risk score above threshold | `0`     |
-| `-v, --verbose`           | Enable verbose output with detailed logs        | `false` |
-
-### `stats`
-
-Shows detailed statistics about repository maintenance risk.
-
-```bash
-maintsight stats [path] [options]
-```
-
-**Arguments:**
-
-- `[path]`: Path to the git repository to analyze. Defaults to the current directory.
-
-**Options:**
-
-| Flag                      | Description                          | Default |
-| ------------------------- | ------------------------------------ | ------- |
-| `-b, --branch <branch>`   | Git branch to analyze                | `main`  |
-| `-n, --max-commits <num>` | Maximum number of commits to analyze | `300`   |
+| Flag                           | Description                                            | Default |
+| ------------------------------ | ------------------------------------------------------ | ------- |
+| `-b, --branch <branch>`        | Git branch to analyze                                  | `main`  |
+| `-n, --max-commits <num>`      | Maximum number of commits to analyze                   | `10000` |
+| `-w, --window-size-days <num>` | Time window in days for commit analysis                | `150`   |
+| `-o, --output <path>`          | Output file path (defaults to stdout)                  | stdout  |
+| `-f, --format <format>`        | Output format: `json`, `csv`, `markdown`, or `html`    | `json`  |
+| `-t, --threshold <num>`        | Only show files with degradation score above threshold | `0`     |
+| `-v, --verbose`                | Enable verbose output with detailed logs               | `false` |
 
 ## 📊 Output Formats
 
@@ -110,8 +83,9 @@ maintsight stats [path] [options]
 [
   {
     "module": "src/services/user.service.ts",
-    "risk_score": 0.823,
-    "risk_category": "high-risk"
+    "degradation_score": 0.2345,
+    "raw_prediction": 0.2345,
+    "risk_category": "severely_degraded"
   }
 ]
 ```
@@ -119,30 +93,37 @@ maintsight stats [path] [options]
 ### CSV Format
 
 ```csv
-module,risk_score,risk_category
-src/services/user.service.ts,0.823,high-risk
-src/controllers/auth.controller.ts,0.652,medium-risk
+module,degradation_score,raw_prediction,risk_category
+src/services/user.service.ts,0.2345,0.2345,severely_degraded
+src/controllers/auth.controller.ts,-0.0567,-0.0567,improved
 ```
 
 ### Markdown Format
 
-```markdown
-# Maintenance Risk Analysis
+Generates a comprehensive markdown report with:
 
-| File                               | Risk Score | Risk Category |
-| ---------------------------------- | ---------- | ------------- |
-| src/services/user.service.ts       | 0.823      | high-risk     |
-| src/controllers/auth.controller.ts | 0.652      | medium-risk   |
-```
+- Degradation distribution summary
+- Top degraded files
+- Risk category breakdown with percentages
+- Actionable recommendations
 
-## 🎯 Risk Categories
+### HTML Format
 
-MaintSight categorizes files into four risk levels:
+Interactive HTML report with:
 
-- **🔴 High Risk** (0.65-1.0): Critical maintenance concerns, requires immediate attention
-- **🟡 Medium Risk** (0.47-0.65): Moderate concerns, should be scheduled for refactoring
-- **🟢 Low Risk** (0.22-0.47): Minor concerns, can be addressed during regular maintenance
-- **⚪ No Risk** (0-0.22): Healthy code, no immediate action needed
+- Visual charts and graphs
+- File-by-file analysis
+- Commit history integration
+- Exportable results
+
+## 🎯 Degradation Categories
+
+MaintSight categorizes files into four degradation levels:
+
+- **🔴 Severely Degraded** (> 0.2): Rapid quality decline, requires immediate attention
+- **🟡 Degraded** (0.1-0.2): Code quality declining, should be scheduled for refactoring
+- **🔵 Stable** (0.0-0.1): Code quality stable, regular maintenance sufficient
+- **🟢 Improved** (< 0.0): Code quality improving over time, continue good practices
 
 ## ⚙️ Configuration
 
@@ -153,15 +134,20 @@ MaintSight respects the following environment variables:
 - `MAINTSIGHT_MODEL_PATH`: Custom path to the XGBoost model file
 - `MAINTSIGHT_LOG_LEVEL`: Logging level (ERROR, WARN, INFO, DEBUG)
 
-### Saved Results
+### Automatic Reports
 
-MaintSight automatically saves prediction results in CSV format to:
+MaintSight automatically generates interactive HTML reports saved to:
 
 ```
-~/.maintsight/<repository-name>/<timestamp>.csv
+<repository>/.maintsight/report.html
 ```
 
-This allows you to track maintenance risk trends over time.
+These reports include:
+
+- Visual degradation trends
+- Interactive file explorer
+- Detailed metrics per file
+- Historical analysis capabilities
 
 ## 📋 Usage Examples
 
@@ -183,17 +169,17 @@ maintsight predict --format markdown --output report.md
 maintsight predict --branch feature/new-feature
 ```
 
-### Quick Analysis (Last 100 Commits)
+### Quick Analysis (Last 60 Days)
 
 ```bash
-maintsight predict --max-commits 100
+maintsight predict --window-size-days 60
 ```
 
 ### CI/CD Integration
 
 ```bash
-# Fail if any file has risk score > 0.8
-maintsight predict --format json --threshold 0.8 || exit 1
+# Fail if any file has severe degradation
+maintsight predict --format json --threshold 0.2 || exit 1
 ```
 
 ## 🔍 Troubleshooting
@@ -221,4 +207,4 @@ maintsight predict --format json --threshold 0.8 || exit 1
 
 - View command help: `maintsight --help`
 - View subcommand help: `maintsight predict --help`
-- Report issues: [GitHub Issues](https://github.com/maintsight/maintsight/issues)
+- Report issues: [GitHub Issues](https://github.com/floristafa/maintsight-cli/issues)

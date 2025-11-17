@@ -62,11 +62,11 @@ jobs:
               body: report
             });
 
-      - name: Fail if critical risk
+      - name: Fail if severe degradation
         run: |
-          critical=$(maintsight predict -f json | jq '[.[] | select(.risk_score > 0.9)] | length')
-          if [ "$critical" -gt "0" ]; then
-            echo "❌ Found $critical files with critical risk!"
+          severe=$(maintsight predict -f json | jq '[.[] | select(.degradation_score > 0.3)] | length')
+          if [ "$severe" -gt "0" ]; then
+            echo "❌ Found $severe files with severe degradation!"
             exit 1
           fi
 ```
@@ -82,8 +82,7 @@ maintenance-check:
   before_script:
     - npm install -g maintsight
   script:
-    - maintsight predict --threshold 0.65 --format markdown > risk-report.md
-    - maintsight stats
+    - maintsight predict --threshold 0.1 --format markdown > risk-report.md
   artifacts:
     reports:
       junit: risk-report.md
@@ -108,10 +107,10 @@ pipeline {
 
         script {
           def report = readJSON file: 'risk-report.json'
-          def highRisk = report.findAll { it.risk_score > 0.65 }
+          def degraded = report.findAll { it.degradation_score > 0.1 }
 
-          if (highRisk.size() > 0) {
-            echo "⚠️  Found ${highRisk.size()} high-risk files"
+          if (degraded.size() > 0) {
+            echo "⚠️  Found ${degraded.size()} degraded files"
             currentBuild.result = 'UNSTABLE'
           }
         }
@@ -137,8 +136,8 @@ Add MaintSight to your package.json scripts:
     "maintenance:check": "maintsight predict",
     "maintenance:report": "maintsight predict -f markdown -o maintenance-report.md",
     "maintenance:stats": "maintsight stats",
-    "maintenance:high-risk": "maintsight predict -t 0.65 -f json",
-    "precommit": "maintsight predict -t 0.8 || echo 'Warning: High risk files detected'"
+    "maintenance:degraded": "maintsight predict -t 0.1 -f json",
+    "precommit": "maintsight predict -t 0.2 || echo 'Warning: Severely degraded files detected'"
   }
 }
 ```
@@ -158,12 +157,12 @@ Create `.husky/pre-commit`:
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
 
-# Check for high-risk files
-high_risk=$(npx maintsight predict -f json -t 0.8 2>/dev/null | jq length)
+# Check for severely degraded files
+severe=$(npx maintsight predict -f json -t 0.2 2>/dev/null | jq length)
 
-if [ "$high_risk" -gt "0" ]; then
-  echo "⚠️  Warning: $high_risk files have high maintenance risk (>0.8)"
-  echo "Run 'maintsight predict -t 0.8' to see details"
+if [ "$severe" -gt "0" ]; then
+  echo "⚠️  Warning: $severe files are severely degraded (>0.2)"
+  echo "Run 'maintsight predict -t 0.2' to see details"
   # Uncomment to block commit:
   # exit 1
 fi
@@ -177,52 +176,52 @@ Integrate MaintSight into your build tools or scripts:
 const { GitCommitCollector, XGBoostPredictor } = require('maintsight');
 const fs = require('fs').promises;
 
-async function checkMaintenanceRisk() {
+async function checkMaintenanceDegradation() {
   const predictor = new XGBoostPredictor();
-  await predictor.loadModel('./node_modules/maintsight/models/model.json');
+  predictor.loadModel(); // Uses built-in model
 
-  const collector = new GitCommitCollector(process.cwd());
-  const commitData = collector.fetchCommitData(300);
+  const collector = new GitCommitCollector(process.cwd(), 'main', 150, true);
+  const commitData = collector.fetchCommitData(10000);
 
   const predictions = predictor.predict(commitData);
-  const highRisk = predictions.filter((p) => p.risk_score > 0.65);
+  const degraded = predictions.filter((p) => p.degradation_score > 0.1);
 
-  if (highRisk.length > 0) {
-    console.warn(`⚠️  ${highRisk.length} high-risk files detected`);
+  if (degraded.length > 0) {
+    console.warn(`⚠️  ${degraded.length} degraded files detected`);
 
     // Save report
-    await fs.writeFile('high-risk-files.json', JSON.stringify(highRisk, null, 2));
+    await fs.writeFile('degraded-files.json', JSON.stringify(degraded, null, 2));
 
     // Optionally fail the build
-    if (highRisk.some((f) => f.risk_score > 0.9)) {
+    if (degraded.some((f) => f.degradation_score > 0.3)) {
       process.exit(1);
     }
   }
 }
 
-checkMaintenanceRisk().catch(console.error);
+checkMaintenanceDegradation().catch(console.error);
 ```
 
 ## 📊 Monitoring & Alerts
 
 ### Slack Integration
 
-Send alerts for high-risk files:
+Send alerts for degraded files:
 
 ```javascript
 const axios = require('axios');
 
-async function sendSlackAlert(highRiskFiles) {
+async function sendSlackAlert(degradedFiles) {
   const webhook = process.env.SLACK_WEBHOOK_URL;
 
   await axios.post(webhook, {
-    text: `⚠️ Maintenance Risk Alert`,
+    text: `⚠️ Code Degradation Alert`,
     attachments: [
       {
         color: 'warning',
-        fields: highRiskFiles.slice(0, 5).map((f) => ({
+        fields: degradedFiles.slice(0, 5).map((f) => ({
           title: f.module,
-          value: `Risk: ${(f.risk_score * 100).toFixed(1)}%`,
+          value: `Degradation: ${f.degradation_score.toFixed(3)}`,
           short: true,
         })),
       },
@@ -239,20 +238,22 @@ Track trends over time:
 #!/bin/bash
 # Run daily and save results
 DATE=$(date +%Y-%m-%d)
-maintsight predict -f json > "reports/risk-${DATE}.json"
+maintsight predict -f json > "reports/degradation-${DATE}.json"
 
 # Generate trend data
 jq -s '[.[] | {
   date: input_filename | split("/")[-1] | split(".")[0] | split("-")[1:4] | join("-"),
-  high_risk: [.[] | select(.risk_score > 0.65)] | length,
+  degraded: [.[] | select(.degradation_score > 0.1)] | length,
+  severely_degraded: [.[] | select(.degradation_score > 0.2)] | length,
   total: length
-}]' reports/risk-*.json > trend-data.json
+}]' reports/degradation-*.json > trend-data.json
 ```
 
 ## Best Practices
 
 1. **Regular Analysis**: Run MaintSight weekly or on each release
-2. **Track Trends**: Monitor risk scores over time
-3. **Set Thresholds**: Define acceptable risk levels for your project
-4. **Prioritize Refactoring**: Focus on files with consistently high risk
-5. **Combine with Code Review**: Use risk scores to guide review efforts
+2. **Track Trends**: Monitor degradation scores over time
+3. **Set Thresholds**: Define acceptable degradation levels for your project
+4. **Prioritize Refactoring**: Focus on files with consistent degradation
+5. **Combine with Code Review**: Use degradation scores to guide review efforts
+6. **Use Interactive Reports**: Leverage HTML reports for team discussions
