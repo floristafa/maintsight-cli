@@ -1,6 +1,6 @@
 {
   "name": "maintsight",
-  "version": "1.18.9",
+  "version": "1.18.10",
   "description": "AI-powered maintenance risk predictor for git repositories using XGBoost",
   "main": "dist/src/maintsight-cli.js",
   "types": "dist/src/maintsight-cli.d.ts",
