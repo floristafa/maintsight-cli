@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import { exec } from 'child_process';
 import chalk from 'chalk';
 import ora from 'ora';
 import { GitCommitCollector } from '../../src/services/git-commit-collector';
@@ -28,7 +29,7 @@ export function createPredictCommand(): Command {
     .option('-n, --max-commits <number>', 'Maximum number of commits to analyze', '10000')
     .option('-w, --window-size-days <number>', 'Time window in days for commit analysis', '150')
     .option('-o, --output <path>', 'Output file path (default: stdout)')
-    .option('-f, --format <format>', 'Output format: json, csv, markdown, html', 'json')
+    .option('-f, --format <format>', 'Output format: json, csv, markdown, html', 'html')
     .option('-t, --threshold <number>', 'Only show files above degradation threshold', '0')
     .option('-v, --verbose', 'Verbose output', false)
     .action(async (repoPath: string, options: PredictOptions) => {
@@ -92,20 +93,41 @@ export function createPredictCommand(): Command {
           const fileUrl = `file://${htmlPath}`;
           const relativePath = path.relative(process.cwd(), htmlPath);
 
-          // Check if we're in VS Code terminal
-          const isVSCode = process.env.TERM_PROGRAM === 'vscode';
+          // Check terminal type for fallback display
+          const isMac = process.platform === 'darwin';
+          const isITerm2 = process.env.TERM_PROGRAM === 'iTerm.app';
 
-          if (isVSCode) {
-            // VS Code: show file path for clicking to open in editor, plus copy-paste URL
-            console.log(chalk.green(`\n🌐 Interactive HTML report generated!`));
-            console.log(chalk.blue(`   File: ${relativePath}`));
-            console.log(chalk.dim(`   Copy & paste in browser: ${fileUrl}`));
-          } else {
-            // Other terminals: try OSC 8 hyperlink
-            const osc8Link = `\x1b]8;;${fileUrl}\x1b\\Click here to open interactive HTML report\x1b]8;;\x1b\\`;
-            console.log(chalk.green(`\n🌐 ${osc8Link}`));
-            console.log(chalk.dim(`   Saved to: ${relativePath}`));
-          }
+          console.log(chalk.green(`\n🌐 Interactive HTML report generated!`));
+          console.log(chalk.blue(`   📁 File: ${relativePath}`));
+          console.log(chalk.dim(`   💡 Opening in browser automatically...`));
+
+          // Auto-open in default browser for all terminals
+          const openCommand =
+            process.platform === 'darwin'
+              ? 'open'
+              : process.platform === 'win32'
+                ? 'start'
+                : 'xdg-open';
+
+          exec(`${openCommand} "${fileUrl}"`, (error) => {
+            if (error) {
+              // Fallback: show URL for manual copy-paste
+              console.log(chalk.yellow(`   ⚠️  Auto-open failed, use manual link below:`));
+              if (isMac && (isITerm2 || process.env.TERM_PROGRAM === 'Apple_Terminal')) {
+                // Show clickable link for supported terminals
+                console.log(
+                  chalk.cyan(`   🌐 Browser: \x1b]8;;${fileUrl}\x1b\\${fileUrl}\x1b]8;;\x1b\\`),
+                );
+                console.log(chalk.dim(`   💡 Cmd+click the link above to open`));
+              } else {
+                // Plain URL for all other cases
+                console.log(chalk.cyan(`   🌐 Browser: ${fileUrl}`));
+                console.log(chalk.dim(`   💡 Copy & paste the URL above in your browser`));
+              }
+            } else {
+              console.log(chalk.green(`   ✅ Report opened in browser`));
+            }
+          });
         }
 
         // Show summary
