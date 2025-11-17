@@ -7,9 +7,10 @@ import * as fs from 'fs';
 // Import commands
 import { createPredictCommand } from './commands/predict.command';
 
-// Read version from package.json - simpler path resolution
-const packageJsonPath = path.resolve(__dirname, '..', '..', 'package.json');
-const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+// Read version from package.json
+const packageJson = JSON.parse(
+  fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf-8'),
+);
 
 const program = new Command();
 
