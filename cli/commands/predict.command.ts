@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import * as path from 'path';
+import * as fs from 'fs/promises';
 import chalk from 'chalk';
 import ora from 'ora';
 import { GitCommitCollector } from '../../src/services/git-commit-collector';
@@ -83,11 +84,9 @@ export function createPredictCommand(): Command {
           if (options.format === 'html') {
             // For HTML format, use the HTML generator
             const htmlContent = formatAsHTML(results, commitData, resolvedPath);
-            const fs = await import('fs/promises');
             await fs.writeFile(options.output, htmlContent, 'utf-8');
           } else {
             const output = formatResults(results, options.format || 'json', resolvedPath);
-            const fs = await import('fs/promises');
             await fs.writeFile(options.output, output, 'utf-8');
           }
           console.log(chalk.green(`✓ Results saved to: ${options.output}`));
