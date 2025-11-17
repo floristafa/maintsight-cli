@@ -332,14 +332,14 @@ export function formatAsHTML(
             background: white;
             padding: 40px 30px;
             border-radius: 15px;
-            box-shadow: 0 4px 20px rgba(117, 133, 255, 0.1);
+            box-shadow: 0 4px 20px rgba(22, 104, 220, 0.1);
             margin-bottom: 30px;
             text-align: center;
-            border: 1px solid rgba(117, 133, 255, 0.1);
+            border: 1px solid rgba(22, 104, 220, 0.1);
         }
 
         .header h1 {
-            color: #7585FF;
+            color: #1668dc;
             margin-bottom: 8px;
             font-size: 2.2em;
             font-weight: 700;
@@ -347,7 +347,7 @@ export function formatAsHTML(
         }
 
         .header p {
-            color: #8B95FF;
+            color: #3c89e8;
             font-size: 1.1em;
             margin-bottom: 20px;
             font-weight: 500;
@@ -355,12 +355,12 @@ export function formatAsHTML(
         }
 
         .header .meta {
-            color: #8B95FF;
+            color: #3c89e8;
             font-size: 0.9em;
             opacity: 0.7;
             margin-top: 15px;
             padding-top: 15px;
-            border-top: 1px solid rgba(117, 133, 255, 0.1);
+            border-top: 1px solid rgba(22, 104, 220, 0.1);
         }
 
         .stats-grid {
@@ -399,7 +399,7 @@ export function formatAsHTML(
         }
 
         .improved { color: #4CAF50; }
-        .stable { color: #7585FF; }
+        .stable { color: #1668dc; }
         .degraded { color: #FF9500; }
         .severely-degraded { color: #FF5757; }
 
@@ -412,7 +412,7 @@ export function formatAsHTML(
         }
 
         .section h2 {
-            color: #7585FF;
+            color: #1668dc;
             margin-bottom: 20px;
             display: flex;
             align-items: center;
@@ -506,8 +506,8 @@ export function formatAsHTML(
         }
 
         .tree-file.stable {
-            border-left-color: #7585FF;
-            background: #F0F2FF;
+            border-left-color: #1668dc;
+            background: #f0f5ff;
         }
 
         .tree-file.degraded {
@@ -553,7 +553,7 @@ export function formatAsHTML(
         }
 
         .risk-badge.stable {
-            background: #7585FF;
+            background: #1668dc;
             color: white;
         }
 
@@ -571,9 +571,9 @@ export function formatAsHTML(
             max-height: 600px;
             overflow-y: auto;
             padding: 10px;
-            background: #FAFBFF;
+            background: #f0f5ff;
             border-radius: 8px;
-            border: 1px solid #E1E5FF;
+            border: 1px solid #65a9f3;
         }
 
         .tree-folder {
@@ -582,8 +582,8 @@ export function formatAsHTML(
             padding: 8px 12px;
             margin: 2px 0;
             border-radius: 6px;
-            background: #F8F9FF;
-            border-left: 4px solid #7585FF;
+            background: #e6f4ff;
+            border-left: 4px solid #1668dc;
             cursor: pointer;
             user-select: none;
             transition: all 0.2s ease;
@@ -591,8 +591,8 @@ export function formatAsHTML(
         }
 
         .tree-folder:hover {
-            background: #F0F2FF;
-            border-left-color: #6B75FF;
+            background: #f0f5ff;
+            border-left-color: #1554ad;
         }
 
         .tree-folder.improved {
@@ -601,8 +601,8 @@ export function formatAsHTML(
         }
 
         .tree-folder.stable {
-            border-left-color: #7585FF;
-            background: #F0F2FF;
+            border-left-color: #1668dc;
+            background: #f0f5ff;
         }
 
         .tree-folder.degraded {
@@ -619,7 +619,7 @@ export function formatAsHTML(
             margin-right: 8px;
             font-size: 12px;
             transition: transform 0.2s ease;
-            color: #7585FF;
+            color: #1668dc;
         }
 
         .folder-toggle.expanded {
@@ -645,8 +645,8 @@ export function formatAsHTML(
         }
 
         .folder-count {
-            color: #7585FF;
-            background: #F0F2FF;
+            color: #1668dc;
+            background: #f0f5ff;
             padding: 2px 6px;
             border-radius: 10px;
             font-weight: 500;
@@ -703,8 +703,8 @@ export function formatAsHTML(
         }
 
         .top-file-item.stable {
-            border-left-color: #7585FF;
-            background: #F0F2FF;
+            border-left-color: #1668dc;
+            background: #f0f5ff;
         }
 
         .top-file-item.improved {
@@ -720,18 +720,19 @@ export function formatAsHTML(
             max-height: 280px; /* Height for ~10 contributors (2 rows of 5) */
             overflow-y: auto;
             padding: 10px;
-            border: 1px solid #E1E5FF;
+            border: 1px solid #65a9f3;
             border-radius: 8px;
-            background: #FAFBFF;
+            background: #f0f5ff;
         }
 
         .author-item {
             display: flex;
             align-items: center;
             padding: 10px 15px;
-            background: #F8F9FF;
+            background: #e6f4ff;
             border-radius: 8px;
-            border-left: 4px solid #7585FF;
+            border: 1px solid #65a9f3;
+            border-left: 4px solid #1668dc;
             transition: background 0.2s ease;
         }
 
@@ -745,7 +746,7 @@ export function formatAsHTML(
             width: 35px;
             height: 35px;
             border-radius: 50%;
-            background: #7585FF;
+            background: #1668dc;
             color: white;
             display: flex;
             align-items: center;
@@ -894,7 +895,7 @@ export function formatAsHTML(
             <h2 class="file-tree">Complete File Analysis Tree</h2>
             ${generateTreeHTML(fileTree)}
         </div>
-        
+
         <div class="two-column">
             <div class="section">
                 <h2 class="commit-stats">Commit Statistics</h2>
