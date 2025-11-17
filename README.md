@@ -344,6 +344,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Made with ❤️ by the MaintSight Team**
+**Made with ❤️ by the TechDebtGPT Team**
 
 [Repository](https://github.com/floristafa/maintsight-cli) | [Documentation](https://github.com/floristafa/maintsight-cli#readme) | [Issues](https://github.com/floristafa/maintsight-cli/issues)
