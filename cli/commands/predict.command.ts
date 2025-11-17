@@ -5,7 +5,6 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { GitCommitCollector } from '../../src/services/git-commit-collector';
 import { XGBoostPredictor } from '../../src/services/xgboost-predictor';
-import { getPackageRoot } from '../utils/find-package-json';
 import { generateHTMLReport, formatAsHTML } from '../utils/html-generator';
 import { RiskPrediction } from '@interfaces';
 
@@ -38,14 +37,10 @@ export function createPredictCommand(): Command {
       try {
         // Resolve paths
         const resolvedPath = path.resolve(repoPath);
-        // Find model path relative to package root
-        const packageRoot = getPackageRoot(__dirname);
-        const modelPath = path.join(packageRoot, 'models', 'model.json');
-
         // Initialize services
         spinner.text = 'Loading XGBoost model...';
         const predictor = new XGBoostPredictor();
-        await predictor.loadModel(modelPath);
+        predictor.loadModel();
 
         // Collect git data
         spinner.text = `Analyzing git history (branch: ${options.branch})...`;

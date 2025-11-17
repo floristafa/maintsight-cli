@@ -1,8 +1,8 @@
-import * as fs from 'fs/promises';
 import { FeatureEngineer } from './feature-engineer';
 import { CommitData, RiskPrediction, XGBoostModel, XGBoostTree } from '@interfaces';
 import { Logger } from '../utils/simple-logger';
 import { RiskCategory } from '../interfaces/risk-category.enum';
+import { XGBOOST_MODEL } from '../../cli/models';
 
 export class XGBoostPredictor {
   private logger: Logger;
@@ -15,13 +15,12 @@ export class XGBoostPredictor {
   }
 
   /**
-   * Load XGBoost model from JSON file
+   * Load XGBoost model
    */
-  async loadModel(modelPath: string): Promise<void> {
+  loadModel(): void {
     try {
-      this.logger.info(`Loading model from ${modelPath}...`, '📁');
-      const modelData = await fs.readFile(modelPath, 'utf-8');
-      this.model = JSON.parse(modelData);
+      this.logger.info(`Loading XGBoost model...`, '📁');
+      this.model = XGBOOST_MODEL;
 
       // Handle feature_names being in different locations
       if (

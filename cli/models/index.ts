@@ -1,6 +1,11 @@
-// This file exports the model path in a way that works with TypeScript's module resolution
-import * as path from 'path';
+import modelData from './xgboost-model.json';
+import { XGBoostModel } from '@interfaces';
 
-// In development, the model is at ../../models/model.json from cli/models
-// In production, it will be at the same relative path from dist/cli/models
-export const MODEL_PATH = path.join(__dirname, '../../models/model.json');
+export const XGBOOST_MODEL: XGBoostModel = modelData as XGBoostModel;
+
+export const MODEL_INFO = {
+  featureCount: modelData.feature_count || 26,
+  modelType: 'xgboost',
+  version: '1.0.0',
+  size: JSON.stringify(modelData).length,
+} as const;

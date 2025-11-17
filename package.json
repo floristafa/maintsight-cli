@@ -2,8 +2,8 @@
   "name": "maintsight",
   "version": "1.18.3",
   "description": "AI-powered maintenance risk predictor for git repositories using XGBoost",
-  "main": "dist/src/index.js",
-  "types": "dist/src/index.d.ts",
+  "main": "dist/src/maintsight-cli.js",
+  "types": "dist/src/maintsight-cli.d.ts",
   "bin": {
     "maintsight": "./dist/cli/maintsight-cli.js",
     "ms": "./dist/cli/maintsight-cli.js"
@@ -72,7 +72,6 @@
   },
   "files": [
     "dist",
-    "models",
     "README.md",
     "LICENSE"
   ]

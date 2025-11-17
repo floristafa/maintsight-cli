@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { findPackageJson } from './utils/find-package-json';
+import * as path from 'path';
+import * as fs from 'fs';
 
 // Import commands
 import { createPredictCommand } from './commands/predict.command';
 
-// Read version from package.json using robust path resolution
-const packageJson = findPackageJson(__dirname);
+// Read version from package.json - simpler path resolution
+const packageJsonPath = path.resolve(__dirname, '..', '..', 'package.json');
+const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
 
 const program = new Command();
 

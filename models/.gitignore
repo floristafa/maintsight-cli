@@ -1,5 +1,0 @@
-# Ignore all model files by default except the ones we need
-*
-!.gitignore
-!README.md
-!model.json
