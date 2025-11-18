@@ -9,6 +9,39 @@ import { XGBoostPredictor } from '../../src/services/xgboost-predictor';
 import { generateHTMLReport, formatAsHTML } from '../utils/html-generator';
 import { RiskPrediction } from '@interfaces';
 
+async function addToGitignore(repoPath: string): Promise<void> {
+  try {
+    const gitignorePath = path.join(repoPath, '.gitignore');
+    const maintSightEntry = '.maintsight/';
+
+    // Check if .gitignore exists
+    let gitignoreContent = '';
+    try {
+      gitignoreContent = await fs.readFile(gitignorePath, 'utf-8');
+    } catch (_error) {
+      // .gitignore doesn't exist, we'll create it
+    }
+
+    // Check if .maintsight/ is already in .gitignore
+    if (!gitignoreContent.includes('.maintsight')) {
+      // Add .maintsight/ to .gitignore
+      const newContent = gitignoreContent
+        ? `${gitignoreContent.trimEnd()}\n\n# MaintSight reports\n${maintSightEntry}\n`
+        : `# MaintSight reports\n${maintSightEntry}\n`;
+
+      await fs.writeFile(gitignorePath, newContent, 'utf-8');
+      console.log(chalk.dim(`   📝 Added .maintsight/ to .gitignore`));
+    }
+  } catch (error) {
+    // Silently fail - not critical functionality
+    console.log(
+      chalk.dim(
+        `   ⚠️  Could not update .gitignore (${error instanceof Error ? error.message : 'unknown error'})`,
+      ),
+    );
+  }
+}
+
 interface PredictOptions {
   branch?: string;
   maxCommits?: number;
@@ -74,6 +107,9 @@ export function createPredictCommand(): Command {
 
         // Generate HTML report in repo's .maintsight folder
         const htmlPath = await generateHTMLReport(results, commitData, resolvedPath);
+
+        // Add .maintsight/ to .gitignore if not already present
+        await addToGitignore(resolvedPath);
 
         // Format and output results if requested
         if (options.output) {
